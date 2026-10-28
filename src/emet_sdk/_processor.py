@@ -108,11 +108,16 @@ class EmetSpanProcessor(SpanProcessor):
 
     def shutdown(self) -> None:
         with self._lock:
+            dropped = len(self._live)
             self._live.clear()
             self._span_turns.clear()
+        if dropped:
+            logger.warning("Emet dropped %d turns still in progress at shutdown", dropped)
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
-        return True
+        # A turn still in progress cannot be handed on yet
+        with self._lock:
+            return not self._live
 
     def _pop_if_done(self, live: _Live) -> CapturedTurn | None:
         if not live.block_closed or live.open_spans:

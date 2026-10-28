@@ -22,7 +22,7 @@ async def chat(body: ChatIn, user=Depends(current_user)):
     return result.output
 ```
 
-- **Adds, never replaces.** `configure()` adds one span processor to your app's `TracerProvider`. Logfire, Datadog or any other exporter keeps receiving the same spans, with the same sampling.
+- **Adds, never replaces.** `configure()` adds one span processor to your app's `TracerProvider`. Logfire, Datadog or any other exporter keeps receiving the same spans, with the same sampling. Call it after your own tracing setup, such as `logfire.configure()`; it creates a provider only when the app has none.
 - **Opt in per turn.** Only spans that start inside `turn()` are sent. Other agents and HTTP spans are not.
 - **Nothing written onto your spans.** The tenant, conversation and user stay in the SDK and never reach your other exporters, or downstream services through baggage.
 - **The user** is who triggered the turn, usually their email. Emet matches it to a member of your organization and stores it on the trace either way.

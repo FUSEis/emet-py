@@ -22,26 +22,27 @@ def _hand_on(captured: CapturedTurn) -> None:
     logger.debug("Emet captured a turn with %d spans", len(captured.spans))
 
 
-def configure() -> EmetSpanProcessor:
+def configure() -> None:
     """Adds Emet to the global TracerProvider, creating an SDK provider when the app has none.
 
-    An app that already exports elsewhere keeps doing so, with the same sampling. Calling it again does nothing.
+    Call it after the app's own tracing setup, such as logfire.configure(): OpenTelemetry keeps the first global
+    provider. An app that already exports elsewhere keeps doing so, with the same sampling. Calling it again does
+    nothing.
     """
     global _processor
     with _lock:
         if _processor is not None:
-            return _processor
+            return
+        if isinstance(trace.get_tracer_provider(), trace.ProxyTracerProvider):
+            trace.set_tracer_provider(TracerProvider())
+        # Read it back: another thread may have set the provider first
         provider = trace.get_tracer_provider()
         if not isinstance(provider, TracerProvider):
-            if not isinstance(provider, trace.ProxyTracerProvider):
-                raise TypeError(
-                    f"Emet needs the OpenTelemetry SDK's TracerProvider, but the app set {type(provider).__name__}. "
-                    "Set an opentelemetry.sdk.trace.TracerProvider before calling emet_sdk.configure()."
-                )
-            provider = TracerProvider()
-            trace.set_tracer_provider(provider)
+            raise TypeError(
+                f"Emet needs the OpenTelemetry SDK's TracerProvider, but the app set {type(provider).__name__}. "
+                "Set an opentelemetry.sdk.trace.TracerProvider before calling emet_sdk.configure()."
+            )
         processor = EmetSpanProcessor(_hand_on)
         provider.add_span_processor(processor)
         _turn._listeners.append(processor)  # pyright: ignore[reportPrivateUsage]
         _processor = processor
-        return processor

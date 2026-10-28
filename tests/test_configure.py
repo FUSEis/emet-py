@@ -25,23 +25,50 @@ def fresh_globals() -> Iterator[None]:
 
 
 def test_creates_an_sdk_provider_when_the_app_has_none() -> None:
-    processor = emet_sdk.configure()
+    emet_sdk.configure()
+    processor = _configure._processor
     provider = trace.get_tracer_provider()
     assert isinstance(provider, TracerProvider)
     assert processor in provider._active_span_processor._span_processors
     assert _turn._listeners == [processor]
 
 
-def test_adds_to_the_apps_provider_without_replacing_it() -> None:
+def test_adds_to_the_apps_provider_without_replacing_it(caplog: pytest.LogCaptureFixture) -> None:
     provider = TracerProvider()
     trace.set_tracer_provider(provider)
-    processor = emet_sdk.configure()
+    emet_sdk.configure()
+    processor = _configure._processor
     assert trace.get_tracer_provider() is provider
     assert processor in provider._active_span_processor._span_processors
+    with (
+        caplog.at_level("DEBUG", logger="emet_sdk"),
+        emet_sdk.turn("t", "c"),
+        provider.get_tracer("test").start_as_current_span("chat"),
+    ):
+        pass
+    assert "captured a turn with 1 spans" in caplog.text
+
+
+def test_uses_the_provider_another_thread_set_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    theirs = TracerProvider()
+    real_set = trace.set_tracer_provider
+
+    def set_after_them(provider: trace.TracerProvider) -> None:
+        real_set(theirs)
+        real_set(provider)
+
+    monkeypatch.setattr(trace, "set_tracer_provider", set_after_them)
+    emet_sdk.configure()
+    processor = _configure._processor
+    assert trace.get_tracer_provider() is theirs
+    assert processor in theirs._active_span_processor._span_processors
 
 
 def test_calling_it_again_does_nothing() -> None:
-    assert emet_sdk.configure() is emet_sdk.configure()
+    emet_sdk.configure()
+    first = _configure._processor
+    emet_sdk.configure()
+    assert _configure._processor is first
     assert len(_turn._listeners) == 1
 
 

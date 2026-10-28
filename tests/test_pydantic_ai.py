@@ -11,6 +11,7 @@ from pydantic_ai.capabilities import Instrumentation  # noqa: E402
 from pydantic_ai.models.test import TestModel  # noqa: E402
 
 import emet_sdk  # noqa: E402
+from emet_sdk._processor import CapturedTurn  # noqa: E402
 from tests.conftest import Harness  # noqa: E402
 
 TURN_VALUES = ("team_editorial", "thread-1", "ada@acme.example")
@@ -36,7 +37,7 @@ def make_agent(harness: Harness) -> Agent[None, str]:
     return agent
 
 
-def operations(captured: emet_sdk.CapturedTurn) -> list[str]:
+def operations(captured: CapturedTurn) -> list[str]:
     return sorted(str((span.attributes or {}).get("gen_ai.operation.name")) for span in captured.spans)
 
 
@@ -66,5 +67,6 @@ async def test_pydantic_ai_makes_up_its_own_conversation_id(harness: Harness) ->
     """Why the envelope takes conversation_id from turn(): the spans carry a fresh id per run."""
     with emet_sdk.turn(*TURN_VALUES):
         await make_agent(harness).run("What did we spend on paid search?")
-    ids = {str((span.attributes or {}).get("gen_ai.conversation.id")) for span in harness.turns[0].spans}
-    assert ids and "thread-1" not in ids
+    ids = [(span.attributes or {}).get("gen_ai.conversation.id") for span in harness.turns[0].spans]
+    assert ids and all(isinstance(i, str) and i for i in ids)
+    assert "thread-1" not in ids

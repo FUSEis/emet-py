@@ -6,10 +6,11 @@ import pytest
 
 import emet_sdk
 from emet_sdk import _processor
+from emet_sdk._processor import CapturedTurn
 from tests.conftest import Harness
 
 
-def names(captured: emet_sdk.CapturedTurn) -> list[str]:
+def names(captured: CapturedTurn) -> list[str]:
     return sorted(span.name for span in captured.spans)
 
 
@@ -121,7 +122,7 @@ async def test_turn_as_an_async_decorator(harness: Harness) -> None:
 
 
 def test_a_failing_handler_is_logged_not_raised(harness: Harness, caplog: pytest.LogCaptureFixture) -> None:
-    def broken(_: emet_sdk.CapturedTurn) -> None:
+    def broken(_: CapturedTurn) -> None:
         raise RuntimeError("boom")
 
     harness.processor._on_turn = broken
@@ -168,10 +169,19 @@ def test_a_stale_turn_is_given_up(
     assert "gave up on a turn" in caplog.text
 
 
-def test_shutdown_drops_turns_in_progress(harness: Harness) -> None:
+def test_shutdown_drops_turns_in_progress(harness: Harness, caplog: pytest.LogCaptureFixture) -> None:
     with emet_sdk.turn("t", "c"):
         span = harness.tracer.start_span("open")
     harness.processor.shutdown()
     span.end()
     assert harness.turns == []
+    assert "dropped 1 turns still in progress" in caplog.text
+
+
+def test_force_flush_reports_a_turn_in_progress(harness: Harness) -> None:
+    assert harness.processor.force_flush()
+    with emet_sdk.turn("t", "c"):
+        span = harness.tracer.start_span("open")
+    assert not harness.processor.force_flush()
+    span.end()
     assert harness.processor.force_flush()
