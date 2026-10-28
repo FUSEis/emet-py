@@ -17,7 +17,8 @@ Agent.instrument_all()
 @app.post("/chat")
 async def chat(body: ChatIn, user=Depends(current_user)):
     # Take these from your server's own auth and storage, never from the request body
-    with emet_sdk.turn(tenant_ref=user.team_external_id, conversation_id=body.thread_id, user=user.email):
+    thread = await threads.get_for_user(user, body.thread_id)
+    with emet_sdk.turn(tenant_ref=user.team_external_id, conversation_id=thread.id, user=user.email):
         result = await agent.run(body.message)
     return result.output
 ```
