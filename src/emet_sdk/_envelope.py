@@ -14,9 +14,9 @@ from typing import Any
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
 
-from emet_sdk._ids import CONVERSATION_ID_MAX, SPAN_ID_MAX, TRACE_ID_MAX, identifier
+from emet_sdk._ids import CONVERSATION_ID_MAX, SPAN_ID_MAX, TRACE_ID_MAX, bounded, identifier
 from emet_sdk._processor import CapturedTurn
-from emet_sdk._redact import Scrubber, media_descriptor
+from emet_sdk._redact import Scrubber, clean_text, media_descriptor
 from emet_sdk._version import VERSION
 
 logger = logging.getLogger("emet_sdk")
@@ -24,6 +24,8 @@ logger = logging.getLogger("emet_sdk")
 SEMCONV_VERSION = "emet-genai-1"
 SDK_NAME = "emet-sdk"
 OPERATION = "gen_ai.operation.name"
+# Operations whose span can stand for the whole turn
+TURN_OPERATIONS = ("invoke_agent", "invoke_workflow")
 
 OPERATION_KINDS = {
     "invoke_workflow": "workflow",
@@ -61,6 +63,10 @@ def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dic
     if len(info.tenant_ref) > 255:
         logger.warning("Emet skipped a turn: tenant_ref is over 255 characters")
         return None
+    if captured.dropped_spans:
+        # The turn's own root may be among the dropped spans, so the tree cannot be trusted
+        logger.warning("Emet skipped a turn: it had more spans than it keeps")
+        return None
     spans = sorted(captured.spans, key=lambda s: (s.start_time or 0, _span_id(s)))
     candidates = [s for s in spans if isinstance(_attrs(s).get(OPERATION), str)]
     if not candidates:
@@ -76,20 +82,35 @@ def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dic
 
     tops = [s for s in candidates if not candidate_parent(s)]
     root = tops[0]
-    root_id = _span_id(root)
+    started_at = _time(min(s.start_time or 0 for s in candidates))
+    ended_at = _time(max(_end(s) for s in candidates))
     scrub = Scrubber(secrets)
     out: list[dict[str, Any]] = []
+    if _attrs(root).get(OPERATION) in TURN_OPERATIONS:
+        root_id = _span_id(root)
+    else:
+        # A bare model or tool call keeps its payload, under a turn span of its own
+        root_id = f"turn.{_span_id(root)}"
+        out.append(
+            {
+                "span_id": root_id,
+                "parent_span_id": "",
+                "name": "emet.turn",
+                "kind": "turn",
+                "status": "error" if any(s.status.status_code is StatusCode.ERROR for s in tops) else "ok",
+                "started_at": started_at,
+                "ended_at": ended_at,
+            }
+        )
     for span in candidates:
         entry = _span(span, scrub)
-        if span is root:
-            entry["kind"] = "turn"
+        if entry["span_id"] == root_id:
+            entry.update(kind="turn", started_at=started_at, ended_at=ended_at)
             entry.pop("payload", None)
-            entry["started_at"] = _time(min(s.start_time or 0 for s in tops))
-            entry["ended_at"] = _time(max(s.end_time or s.start_time or 0 for s in tops))
         else:
             entry["parent_span_id"] = candidate_parent(span) or root_id
         out.append(entry)
-    _mark_final_output(out)
+    _mark_final_output(out, {_span_id(s): _end(s) for s in candidates})
     if scrub.redactions:
         out[0].setdefault("attributes", {})["emet.redactions"] = scrub.redactions
 
@@ -101,13 +122,13 @@ def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dic
         "enduser_ref": info.user if info.user and len(info.user) <= 255 else "",
         "ingestion_mode": "sdk",
         "semconv_version": SEMCONV_VERSION,
-        "resource": _resource(root),
+        "resource": Scrubber(secrets)(_resource(root)),
         "spans": out,
         "end": True,
     }
     session = _attrs(root).get("session.id")
     if isinstance(session, str) and session:
-        envelope["session_ref"] = session[:255]
+        envelope["session_ref"] = Scrubber(secrets).text(bounded(session, 255))
     return envelope
 
 
@@ -121,6 +142,10 @@ def _span_id(span: ReadableSpan) -> str:
 
 def _parent_id(span: ReadableSpan) -> str:
     return f"{span.parent.span_id:016x}" if span.parent else ""
+
+
+def _end(span: ReadableSpan) -> int:
+    return span.end_time or span.start_time or 0
 
 
 def _time(nanoseconds: int) -> str:
@@ -147,10 +172,10 @@ def _span(span: ReadableSpan, scrub: Scrubber) -> dict[str, Any]:
         "parent_span_id": "",
         "name": scrub.text(span.name)[:255],
         "kind": kind,
-        "operation": operation[:32],
+        "operation": scrub.text(operation)[:32],
         "status": "error" if span.status.status_code is StatusCode.ERROR else "ok",
         "started_at": _time(span.start_time or 0),
-        "ended_at": _time(span.end_time or span.start_time or 0),
+        "ended_at": _time(_end(span)),
     }
     columns = {
         "model_name": _text(attrs.get("gen_ai.response.model") or attrs.get("gen_ai.request.model"), 255),
@@ -172,7 +197,7 @@ def _span(span: ReadableSpan, scrub: Scrubber) -> dict[str, Any]:
                 entry[key] = count
         reasons = attrs.get("gen_ai.response.finish_reasons")
         if isinstance(reasons, Sequence) and reasons and isinstance(reasons[0], str):
-            entry["finish_reason"] = reasons[0][:32]
+            entry["finish_reason"] = scrub.text(reasons[0])[:32]
     entry.update(_error(span, scrub))
     attributes = _attributes(attrs, scrub)
     if attributes:
@@ -191,6 +216,7 @@ def _error(span: ReadableSpan, scrub: Scrubber) -> dict[str, str]:
     error_type = _text(event_attrs.get("exception.type") or _attrs(span).get("error.type"), 64)
     # The stack trace is never sent: it names files and local variables
     message = _text(event_attrs.get("exception.message") or span.status.description, 10000)
+    message = message.split("Traceback (most recent call last)")[0].rstrip()
     result = {}
     if error_type:
         result["error_type"] = scrub.text(error_type)
@@ -205,13 +231,20 @@ def _attributes(attrs: Mapping[str, Any], scrub: Scrubber) -> dict[str, Any]:
         if not key.startswith(ATTRIBUTE_PREFIXES):
             continue
         value = attrs[key]
-        if isinstance(value, str):
-            kept[key] = value[:ATTRIBUTE_TEXT_MAX]
-        elif isinstance(value, bool | int | float):
+        if isinstance(value, str | bool | int | float):
             kept[key] = value
         elif isinstance(value, Sequence):
-            kept[key] = [v[:ATTRIBUTE_TEXT_MAX] if isinstance(v, str) else v for v in value]
+            kept[key] = list(value)
+    # Redact before clipping, so a clipped secret still matches its pattern
     kept = scrub(kept)
+    kept = {
+        key: value[:ATTRIBUTE_TEXT_MAX]
+        if isinstance(value, str)
+        else [v[:ATTRIBUTE_TEXT_MAX] if isinstance(v, str) else v for v in value]
+        if isinstance(value, list)
+        else value
+        for key, value in kept.items()
+    }
     while kept and len(json.dumps(kept, ensure_ascii=False).encode("utf-8")) > ATTRIBUTES_MAX_BYTES:
         kept.pop(max(kept, key=lambda k: len(json.dumps(kept[k], ensure_ascii=False))))
     return kept
@@ -260,7 +293,7 @@ def _payload(kind: str, attrs: Mapping[str, Any], scrub: Scrubber) -> dict[str, 
             payload[key] = messages
         system_texts += _part_texts(_decode(attrs.get("gen_ai.system_instructions")))
         if system_texts:
-            digest = hashlib.sha256("\n\n".join(system_texts).encode("utf-8")).hexdigest()
+            digest = hashlib.sha256(clean_text("\n\n".join(system_texts)).encode("utf-8")).hexdigest()
             payload["system_instructions"] = [{"type": "prompt_hash", "name": "sha256", "content": digest}]
         definitions = _decode(attrs.get("gen_ai.tool.definitions"))
         if isinstance(definitions, list):
@@ -277,6 +310,8 @@ def _payload(kind: str, attrs: Mapping[str, Any], scrub: Scrubber) -> dict[str, 
 
 
 def _part_texts(parts: Any) -> list[str]:
+    if isinstance(parts, str):
+        return [parts]
     if not isinstance(parts, list):
         return []
     return [
@@ -326,13 +361,13 @@ def _part(raw: dict[str, Any]) -> dict[str, Any]:
     return part
 
 
-def _mark_final_output(spans: list[dict[str, Any]]) -> None:
-    """Marks the turn's last model call as the final output when it answered in text and stopped normally."""
+def _mark_final_output(spans: list[dict[str, Any]], ends: dict[str, int]) -> None:
+    """Marks the turn's last model call as the final output when it succeeded and answered in text."""
     models = [s for s in spans if s["kind"] == "model"]
     if not models:
         return
-    last = max(models, key=lambda s: s["ended_at"])
-    if last.get("finish_reason", "stop") != "stop":
+    last = max(models, key=lambda s: ends.get(s["span_id"], 0))
+    if last["status"] != "ok" or last.get("finish_reason", "stop") != "stop":
         return
     parts = [p for m in last.get("payload", {}).get("output_messages", []) for p in m.get("parts", [])]
     if any(p.get("type") == "tool_call" for p in parts):

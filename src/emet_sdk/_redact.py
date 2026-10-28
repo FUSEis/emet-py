@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import math
 import re
@@ -41,6 +43,11 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str], int]] = [
     ),
 ]
 
+# A string value under a key named like this is a credential, whatever it looks like
+SENSITIVE_KEY = re.compile(
+    r"(?i)\A(?:.*[_.\-])?(?:password|passwd|secret|token|api_?key|access_?key|private_?key|authorization|credentials?)\Z"
+)
+
 # A long run of base64 characters mixing cases and digits is file content, not text
 BASE64_RUN = re.compile(r"^(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z])(?=[^0-9]*[0-9])[A-Za-z0-9+/\r\n]{4096,}={0,2}\s*$")
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
@@ -70,9 +77,11 @@ def clean_text(text: str) -> str:
 
 def media_descriptor(media_type: str, data: str) -> str:
     """Describes inline file content by type, size and digest instead of sending it."""
-    size = len(data) * 3 // 4 - data.count("=")
-    digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
-    return f"[{media_type or 'binary'} not sent: {size} bytes, sha256 {digest}]"
+    try:
+        raw = base64.b64decode("".join(data.split()), validate=True)
+    except (binascii.Error, ValueError):
+        raw = clean_text(data).encode("utf-8")
+    return f"[{media_type or 'binary'} not sent: {len(raw)} bytes, sha256 {hashlib.sha256(raw).hexdigest()}]"
 
 
 def walk(value: Any, transform: Callable[[str], str]) -> Any:
@@ -106,4 +115,15 @@ class Scrubber:
         return text
 
     def __call__(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            out: dict[Any, Any] = {}
+            for key, item in value.items():  # pyright: ignore[reportUnknownVariableType]
+                if isinstance(key, str) and isinstance(item, str) and item and SENSITIVE_KEY.match(key):
+                    self.redactions += 1
+                    out[self.text(key)] = "[REDACTED:secret_field]"
+                else:
+                    out[self.text(key) if isinstance(key, str) else key] = self(item)
+            return out
+        if isinstance(value, list):
+            return [self(item) for item in value]  # pyright: ignore[reportUnknownVariableType]
         return walk(value, self.text)

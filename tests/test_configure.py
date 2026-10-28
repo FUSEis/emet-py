@@ -46,7 +46,7 @@ def test_adds_to_the_apps_provider_without_replacing_it(caplog: pytest.LogCaptur
         provider.get_tracer("test").start_as_current_span("chat", attributes={"gen_ai.operation.name": "chat"}),
     ):
         pass
-    assert "built a turn with 1 spans" in caplog.text
+    assert "built a turn with 2 spans" in caplog.text
 
 
 def test_uses_the_provider_another_thread_set_first(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -87,4 +87,4 @@ def test_a_configured_app_hands_on_its_turns(caplog: pytest.LogCaptureFixture) -
         tracer.start_as_current_span("chat", attributes={"gen_ai.operation.name": "chat"}),
     ):
         pass
-    assert "built a turn with 1 spans" in caplog.text
+    assert "built a turn with 2 spans" in caplog.text

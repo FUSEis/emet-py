@@ -81,6 +81,13 @@ def test_the_system_prompt_travels_as_a_hash() -> None:
     assert all(m["role"] != "system" for m in model["payload"]["input_messages"])
 
 
+def test_media_is_described_by_its_decoded_bytes() -> None:
+    from emet_sdk._redact import media_descriptor
+
+    assert media_descriptor("image/png", "aGVs\nbG8=") == media_descriptor("image/png", "aGVsbG8=")
+    assert "5 bytes" in media_descriptor("image/png", "aGVsbG8=")
+
+
 def test_an_image_becomes_a_descriptor() -> None:
     model = next(s for s in tool_turn()["spans"] if s["kind"] == "model")
     blob = next(p for m in model["payload"]["input_messages"] for p in m["parts"] if p["type"] == "blob")
@@ -191,6 +198,108 @@ def test_an_overlong_tenant_ref_skips_the_turn() -> None:
     assert build_envelope(turn_of(span(1, None, "chat", op("chat")), tenant_ref="x" * 256)) is None
 
 
+def test_a_bare_model_call_keeps_its_payload_under_a_turn_of_its_own() -> None:
+    output = json.dumps([{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}])
+    envelope = build_envelope(turn_of(span(1, None, "chat", op("chat", **{"gen_ai.output.messages": output}))))
+    assert envelope is not None
+    turn, model = envelope["spans"]
+    assert (turn["span_id"], turn["kind"], turn["name"]) == ("turn.0000000000000001", "turn", "emet.turn")
+    assert (model["parent_span_id"], model["kind"], model["is_final_output"]) == (turn["span_id"], "model", True)
+    assert model["payload"]["output_messages"]
+
+
+def test_the_turn_lasts_until_its_last_call_ends() -> None:
+    envelope = build_envelope(
+        turn_of(
+            span(1, None, "agent", op("invoke_agent"), start=0, end=5),
+            span(2, 1, "chat", op("chat"), start=1, end=8),
+        )
+    )
+    assert envelope is not None
+    assert envelope["spans"][0]["ended_at"] == envelope["spans"][1]["ended_at"]
+
+
+def test_a_failed_model_call_is_not_the_final_output() -> None:
+    output = json.dumps([{"role": "assistant", "parts": [{"type": "text", "content": "Partial"}]}])
+    envelope = build_envelope(
+        turn_of(
+            span(1, None, "agent", op("invoke_agent")),
+            span(2, 1, "chat", op("chat", **{"gen_ai.output.messages": output}), status=StatusCode.ERROR),
+        )
+    )
+    assert envelope is not None
+    assert "is_final_output" not in envelope["spans"][1]
+
+
+def test_the_final_output_uses_exact_end_times() -> None:
+    output = json.dumps([{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}])
+    first = span(2, 1, "chat a", op("chat", **{"gen_ai.output.messages": output}), start=1, end=2)
+    second = span(3, 1, "chat b", op("chat", **{"gen_ai.output.messages": output}), start=1, end=2)
+    # Same microsecond, a few nanoseconds apart
+    second._end_time = (second.end_time or 0) + 5
+    envelope = build_envelope(turn_of(span(1, None, "agent", op("invoke_agent")), first, second))
+    assert envelope is not None
+    assert [s.get("is_final_output", False) for s in envelope["spans"][1:]] == [False, True]
+
+
+def test_a_status_description_never_carries_a_traceback() -> None:
+    failed = ReadableSpan(
+        name="execute_tool t",
+        context=SpanContext(1, 2, is_remote=False),
+        parent=SpanContext(1, 1, is_remote=False),
+        attributes=op("execute_tool"),
+        status=Status(StatusCode.ERROR, "boom\nTraceback (most recent call last):\n  File x"),
+        start_time=BASE_TIME,
+        end_time=BASE_TIME,
+    )
+    envelope = build_envelope(turn_of(span(1, None, "agent", op("invoke_agent")), failed))
+    assert envelope is not None
+    assert envelope["spans"][1]["error_message"] == "boom"
+
+
+def test_plain_text_system_instructions_are_hashed() -> None:
+    envelope = build_envelope(turn_of(span(1, None, "chat", op("chat", **{"gen_ai.system_instructions": "Be brief."}))))
+    assert envelope is not None
+    assert envelope["spans"][1]["payload"]["system_instructions"][0]["type"] == "prompt_hash"
+    assert "Be brief." not in json.dumps(envelope)
+
+
+def test_a_turn_over_the_span_cap_is_skipped() -> None:
+    captured = turn_of(span(1, None, "chat", op("chat")))
+    assert build_envelope(CapturedTurn(captured.info, captured.spans, dropped_spans=1)) is None
+
+
+def test_metadata_strings_are_redacted() -> None:
+    secret = "sk-ant-" + "cd34" * 6
+    attributes = op("chat", **{"gen_ai.response.finish_reasons": (secret,), "session.id": secret})
+    envelope = build_envelope(turn_of(span(1, None, "chat", attributes)))
+    assert envelope is not None
+    assert secret not in json.dumps(envelope)
+
+
+def test_values_under_sensitive_keys_are_redacted() -> None:
+    result = json.dumps({"password": "correcthorsebatterystaple", "max_tokens": 5, "user": "ada"})
+    envelope = build_envelope(
+        turn_of(
+            span(1, None, "agent", op("invoke_agent")),
+            span(2, 1, "execute_tool t", op("execute_tool", **{"gen_ai.tool.call.result": result})),
+        )
+    )
+    assert envelope is not None
+    assert envelope["spans"][1]["payload"]["result"] == {
+        "password": "[REDACTED:secret_field]",
+        "max_tokens": 5,
+        "user": "ada",
+    }
+
+
+def test_an_overlong_session_ref_is_hashed() -> None:
+    attributes = op("chat", **{"session.id": "s" * 300})
+    envelope = build_envelope(turn_of(span(1, None, "chat", attributes)))
+    assert envelope is not None
+    assert len(envelope["session_ref"]) == 255 and envelope["session_ref"] != "s" * 255
+
+
 def test_an_overlong_user_is_left_out() -> None:
     envelope = build_envelope(turn_of(span(1, None, "chat", op("chat")), user="x" * 256))
     assert envelope is not None and envelope["enduser_ref"] == ""
@@ -252,7 +361,7 @@ def test_attributes_are_kept_under_the_size_limit() -> None:
     attributes = op("chat", **{f"gen_ai.request.k{i}": "x" * 1024 for i in range(40)})
     envelope = build_envelope(turn_of(span(1, None, "chat", attributes)))
     assert envelope is not None
-    kept = envelope["spans"][0]["attributes"]
+    kept = envelope["spans"][1]["attributes"]
     assert len(json.dumps(kept).encode()) <= 16384
     assert all(len(v) <= 1024 for v in kept.values())
 
@@ -266,6 +375,8 @@ def test_identifiers() -> None:
     assert identifier("a b", 64) == identifier("a b", 64)
     assert len(identifier("x" * 300, 64)) == 64
     assert identifier("...", 64).startswith("...:")
+    # A raw id already shaped like a hashed one is hashed as well, so it can never equal another id's hash
+    assert identifier("a_b:" + "0" * 16, 64) != "a_b:" + "0" * 16
 
 
 @pytest.mark.parametrize(

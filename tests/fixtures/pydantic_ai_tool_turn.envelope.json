@@ -50,7 +50,7 @@
                 "type": "text"
               },
               {
-                "content": "[image/png not sent: 48 bytes, sha256 d74ce70ecbdd4c8b1ec0ed29a027ea3ba25274cfc3fd317cbfee6e2e8ef258c0]",
+                "content": "[image/png not sent: 48 bytes, sha256 e2870ac60b4a4694dac5044dda106330179fae5321fd1f58a1db9973c97fa123]",
                 "mime_type": "image/png",
                 "modality": "image",
                 "type": "blob"
@@ -286,7 +286,7 @@
                 "type": "text"
               },
               {
-                "content": "[image/png not sent: 48 bytes, sha256 d74ce70ecbdd4c8b1ec0ed29a027ea3ba25274cfc3fd317cbfee6e2e8ef258c0]",
+                "content": "[image/png not sent: 48 bytes, sha256 e2870ac60b4a4694dac5044dda106330179fae5321fd1f58a1db9973c97fa123]",
                 "mime_type": "image/png",
                 "modality": "image",
                 "type": "blob"
