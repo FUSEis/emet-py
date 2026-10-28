@@ -38,3 +38,7 @@ def harness() -> Iterator[Harness]:
     finally:
         _turn._listeners.remove(processor)
         provider.shutdown()
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--update-fixtures", action="store_true", help="Rewrite the expected envelopes from the code")
