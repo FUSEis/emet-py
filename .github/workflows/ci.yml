@@ -44,6 +44,21 @@ jobs:
       - run: uv sync --locked
       - run: uv run pytest --cov --cov-report=term-missing --durations=15
 
+  # The oldest OpenTelemetry the package accepts
+  lowest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.10"
+      - run: uv sync --resolution lowest-direct
+      - run: uv pip list | grep '^opentelemetry-sdk *1\.27\.'
+      - run: uv run --frozen pytest
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -62,10 +77,10 @@ jobs:
   # The one check branch protection requires, so the matrix can change without touching the rules
   ci:
     if: always()
-    needs: [lint, test, build]
+    needs: [lint, test, lowest, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: All checks passed
         run: |
-          [ "${{ needs.lint.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.build.result }}" = "success" ]
+          [ "${{ needs.lint.result }}" = "success" ] && [ "${{ needs.test.result }}" = "success" ] && [ "${{ needs.lowest.result }}" = "success" ] && [ "${{ needs.build.result }}" = "success" ]
