@@ -1,0 +1,126 @@
+{
+  "spans": [
+    {
+      "attributes": {
+        "agent_name": "agent",
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.aggregated_usage.input_tokens": 54,
+        "gen_ai.aggregated_usage.output_tokens": 5,
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "invoke_agent",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}",
+        "logfire.msg": "agent run",
+        "model_name": "test",
+        "pydantic_ai.all_messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Is paid search up?\"}]}]"
+      },
+      "end_time": 1800000000005000000,
+      "events": [
+        {
+          "attributes": {
+            "exception.escaped": "False",
+            "exception.message": "could not reach postgres://app:hunter2@db.internal:5432/spend",
+            "exception.stacktrace": "Traceback (most recent call last):\n  File \"/srv/app/tools.py\", line 12, in broken\n",
+            "exception.type": "ConnectionError"
+          },
+          "name": "exception"
+        }
+      ],
+      "name": "invoke_agent agent",
+      "parent_span_id": null,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 1,
+      "start_time": 1800000000000000000,
+      "status": {
+        "code": "ERROR",
+        "description": "ConnectionError: could not reach postgres://app:hunter2@db.internal:5432/spend"
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Is paid search up?\"}]}]",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__broken\",\"name\":\"broken\",\"arguments\":{\"channel\":\"a\"}}]}]",
+        "gen_ai.provider.name": "test",
+        "gen_ai.request.model": "test",
+        "gen_ai.response.model": "test",
+        "gen_ai.system": "test",
+        "gen_ai.tool.definitions": "[{\"type\":\"function\",\"name\":\"broken\",\"description\":\"Always fails.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}}]",
+        "gen_ai.usage.input_tokens": 54,
+        "gen_ai.usage.output_tokens": 5,
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}",
+        "model_request_parameters": "{\"function_tools\":[{\"name\":\"broken\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Always fails.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null}],\"native_tools\":[],\"tool_visibility\":{\"broken\":\"visible\"},\"revealed_tool_names\":[],\"introduced_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"instruction_visibility\":null,\"thinking\":null,\"cache\":null}"
+      },
+      "end_time": 1800000000002000000,
+      "events": [],
+      "name": "chat test",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 2,
+      "start_time": 1800000000001000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.call.arguments": "{\"channel\":\"a\"}",
+        "gen_ai.tool.call.id": "pyd_ai_tool_call_id__broken",
+        "gen_ai.tool.name": "broken",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}",
+        "logfire.msg": "running tool: broken"
+      },
+      "end_time": 1800000000004000000,
+      "events": [
+        {
+          "attributes": {
+            "exception.escaped": "True",
+            "exception.message": "could not reach postgres://app:hunter2@db.internal:5432/spend",
+            "exception.stacktrace": "Traceback (most recent call last):\n  File \"/srv/app/tools.py\", line 12, in broken\n",
+            "exception.type": "ConnectionError"
+          },
+          "name": "exception"
+        }
+      ],
+      "name": "execute_tool broken",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 3,
+      "start_time": 1800000000003000000,
+      "status": {
+        "code": "ERROR",
+        "description": null
+      }
+    }
+  ],
+  "turn": {
+    "conversation_id": "thread #42/ü",
+    "tenant_ref": "Team Editorial"
+  }
+}

@@ -43,10 +43,10 @@ def test_adds_to_the_apps_provider_without_replacing_it(caplog: pytest.LogCaptur
     with (
         caplog.at_level("DEBUG", logger="emet_sdk"),
         emet_sdk.turn("t", "c"),
-        provider.get_tracer("test").start_as_current_span("chat"),
+        provider.get_tracer("test").start_as_current_span("chat", attributes={"gen_ai.operation.name": "chat"}),
     ):
         pass
-    assert "captured a turn with 1 spans" in caplog.text
+    assert "built a turn with 2 spans" in caplog.text
 
 
 def test_uses_the_provider_another_thread_set_first(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,6 +81,10 @@ def test_names_the_fix_for_a_non_sdk_provider() -> None:
 def test_a_configured_app_hands_on_its_turns(caplog: pytest.LogCaptureFixture) -> None:
     emet_sdk.configure()
     tracer = trace.get_tracer("test")
-    with caplog.at_level("DEBUG", logger="emet_sdk"), emet_sdk.turn("t", "c"), tracer.start_as_current_span("chat"):
+    with (
+        caplog.at_level("DEBUG", logger="emet_sdk"),
+        emet_sdk.turn("t", "c"),
+        tracer.start_as_current_span("chat", attributes={"gen_ai.operation.name": "chat"}),
+    ):
         pass
-    assert "captured a turn with 1 spans" in caplog.text
+    assert "built a turn with 2 spans" in caplog.text

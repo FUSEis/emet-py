@@ -1,0 +1,241 @@
+{
+  "spans": [
+    {
+      "attributes": {
+        "agent_name": "agent",
+        "final_result": "{\"get_spend\":{\"spend\":48210.55,\"currency\":\"USD\",\"channel\":\"a\"},\"get_daily\":[6800,7100,6950],\"mark_reviewed\":null,\"read_config\":\"ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend\"}",
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.aggregated_usage.input_tokens": 238,
+        "gen_ai.aggregated_usage.output_tokens": 58,
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "invoke_agent",
+        "gen_ai.system_instructions": "[{\"type\":\"text\",\"content\":\"Be brief.\"}]",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"gen_ai.system_instructions\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}",
+        "logfire.msg": "agent run",
+        "model_name": "test",
+        "pydantic_ai.all_messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"You answer spend questions.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What did we spend on paid search?\"},{\"type\":\"blob\",\"mime_type\":\"image/png\",\"modality\":\"image\",\"content\":\"iVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0K\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_spend\",\"name\":\"get_spend\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_daily\",\"name\":\"get_daily\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__mark_reviewed\",\"name\":\"mark_reviewed\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__read_config\",\"name\":\"read_config\",\"arguments\":{}}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__get_spend\",\"name\":\"get_spend\",\"result\":{\"spend\":48210.55,\"currency\":\"USD\",\"channel\":\"a\"}},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__get_daily\",\"name\":\"get_daily\",\"result\":[6800,7100,6950]},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__mark_reviewed\",\"name\":\"mark_reviewed\"},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__read_config\",\"name\":\"read_config\",\"result\":\"ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"get_spend\\\":{\\\"spend\\\":48210.55,\\\"currency\\\":\\\"USD\\\",\\\"channel\\\":\\\"a\\\"},\\\"get_daily\\\":[6800,7100,6950],\\\"mark_reviewed\\\":null,\\\"read_config\\\":\\\"ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\\\\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend\\\"}\"}]}]"
+      },
+      "end_time": 1800000000013000000,
+      "events": [],
+      "name": "invoke_agent agent",
+      "parent_span_id": null,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 1,
+      "start_time": 1800000000000000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"You answer spend questions.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What did we spend on paid search?\"},{\"type\":\"blob\",\"mime_type\":\"image/png\",\"modality\":\"image\",\"content\":\"iVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0K\"}]}]",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_spend\",\"name\":\"get_spend\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_daily\",\"name\":\"get_daily\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__mark_reviewed\",\"name\":\"mark_reviewed\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__read_config\",\"name\":\"read_config\",\"arguments\":{}}]}]",
+        "gen_ai.provider.name": "test",
+        "gen_ai.request.model": "test",
+        "gen_ai.response.model": "test",
+        "gen_ai.system": "test",
+        "gen_ai.system_instructions": "[{\"type\":\"text\",\"content\":\"Be brief.\"}]",
+        "gen_ai.tool.definitions": "[{\"type\":\"function\",\"name\":\"get_spend\",\"description\":\"Returns spend for a channel.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"get_daily\",\"description\":\"Returns daily spend, a non-object result.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"mark_reviewed\",\"description\":\"Returns nothing.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"read_config\",\"description\":\"Returns text holding secrets.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{},\"type\":\"object\"}}]",
+        "gen_ai.usage.input_tokens": 110,
+        "gen_ai.usage.output_tokens": 17,
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"gen_ai.system_instructions\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}",
+        "model_request_parameters": "{\"function_tools\":[{\"name\":\"get_spend\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns spend for a channel.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"get_daily\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns daily spend, a non-object result.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"mark_reviewed\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns nothing.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"read_config\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{},\"type\":\"object\"},\"description\":\"Returns text holding secrets.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null}],\"native_tools\":[],\"tool_visibility\":{\"get_spend\":\"visible\",\"get_daily\":\"visible\",\"mark_reviewed\":\"visible\",\"read_config\":\"visible\"},\"revealed_tool_names\":[],\"introduced_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":[{\"content\":\"Be brief.\",\"dynamic\":false,\"on_change\":\"rewrite\",\"name\":null,\"id\":\"agent\",\"part_kind\":\"instruction\"}],\"instruction_visibility\":null,\"thinking\":null,\"cache\":null}"
+      },
+      "end_time": 1800000000002000000,
+      "events": [],
+      "name": "chat test",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 2,
+      "start_time": 1800000000001000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.call.arguments": "{\"channel\":\"a\"}",
+        "gen_ai.tool.call.id": "pyd_ai_tool_call_id__get_spend",
+        "gen_ai.tool.call.result": "{\"spend\":48210.55,\"currency\":\"USD\",\"channel\":\"a\"}",
+        "gen_ai.tool.name": "get_spend",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}",
+        "logfire.msg": "running tool: get_spend"
+      },
+      "end_time": 1800000000007000000,
+      "events": [],
+      "name": "execute_tool get_spend",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 3,
+      "start_time": 1800000000003000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.call.arguments": "{\"channel\":\"a\"}",
+        "gen_ai.tool.call.id": "pyd_ai_tool_call_id__get_daily",
+        "gen_ai.tool.call.result": "[6800,7100,6950]",
+        "gen_ai.tool.name": "get_daily",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}",
+        "logfire.msg": "running tool: get_daily"
+      },
+      "end_time": 1800000000008000000,
+      "events": [],
+      "name": "execute_tool get_daily",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 4,
+      "start_time": 1800000000004000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.call.arguments": "{\"channel\":\"a\"}",
+        "gen_ai.tool.call.id": "pyd_ai_tool_call_id__mark_reviewed",
+        "gen_ai.tool.call.result": "null",
+        "gen_ai.tool.name": "mark_reviewed",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}",
+        "logfire.msg": "running tool: mark_reviewed"
+      },
+      "end_time": 1800000000009000000,
+      "events": [],
+      "name": "execute_tool mark_reviewed",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 5,
+      "start_time": 1800000000005000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.call.arguments": "{}",
+        "gen_ai.tool.call.id": "pyd_ai_tool_call_id__read_config",
+        "gen_ai.tool.call.result": "ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend",
+        "gen_ai.tool.name": "read_config",
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}",
+        "logfire.msg": "running tool: read_config"
+      },
+      "end_time": 1800000000010000000,
+      "events": [],
+      "name": "execute_tool read_config",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 6,
+      "start_time": 1800000000006000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.conversation.id": "01a17f7e-d244-7192-8444-d31616de69a6",
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"You answer spend questions.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What did we spend on paid search?\"},{\"type\":\"blob\",\"mime_type\":\"image/png\",\"modality\":\"image\",\"content\":\"iVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0KiVBORw0K\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_spend\",\"name\":\"get_spend\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__get_daily\",\"name\":\"get_daily\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__mark_reviewed\",\"name\":\"mark_reviewed\",\"arguments\":{\"channel\":\"a\"}},{\"type\":\"tool_call\",\"id\":\"pyd_ai_tool_call_id__read_config\",\"name\":\"read_config\",\"arguments\":{}}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__get_spend\",\"name\":\"get_spend\",\"result\":{\"spend\":48210.55,\"currency\":\"USD\",\"channel\":\"a\"}},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__get_daily\",\"name\":\"get_daily\",\"result\":[6800,7100,6950]},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__mark_reviewed\",\"name\":\"mark_reviewed\"},{\"type\":\"tool_call_response\",\"id\":\"pyd_ai_tool_call_id__read_config\",\"name\":\"read_config\",\"result\":\"ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend\"}]}]",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"get_spend\\\":{\\\"spend\\\":48210.55,\\\"currency\\\":\\\"USD\\\",\\\"channel\\\":\\\"a\\\"},\\\"get_daily\\\":[6800,7100,6950],\\\"mark_reviewed\\\":null,\\\"read_config\\\":\\\"ANTHROPIC_API_KEY=sk-ant-a1a1a1a1a1a1a1a1a1a1a1a1\\\\nDATABASE_URL=postgres://app:hunter2@db.internal:5432/spend\\\"}\"}]}]",
+        "gen_ai.provider.name": "test",
+        "gen_ai.request.model": "test",
+        "gen_ai.response.model": "test",
+        "gen_ai.system": "test",
+        "gen_ai.system_instructions": "[{\"type\":\"text\",\"content\":\"Be brief.\"}]",
+        "gen_ai.tool.definitions": "[{\"type\":\"function\",\"name\":\"get_spend\",\"description\":\"Returns spend for a channel.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"get_daily\",\"description\":\"Returns daily spend, a non-object result.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"mark_reviewed\",\"description\":\"Returns nothing.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"}},{\"type\":\"function\",\"name\":\"read_config\",\"description\":\"Returns text holding secrets.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{},\"type\":\"object\"}}]",
+        "gen_ai.usage.input_tokens": 128,
+        "gen_ai.usage.output_tokens": 41,
+        "logfire.json_schema": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"gen_ai.system_instructions\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}",
+        "model_request_parameters": "{\"function_tools\":[{\"name\":\"get_spend\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns spend for a channel.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"get_daily\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns daily spend, a non-object result.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"mark_reviewed\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"channel\":{\"type\":\"string\"}},\"required\":[\"channel\"],\"type\":\"object\"},\"description\":\"Returns nothing.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null},{\"name\":\"read_config\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{},\"type\":\"object\"},\"description\":\"Returns text holding secrets.\",\"outer_typed_dict_key\":null,\"strict\":null,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"unless_tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null}],\"native_tools\":[],\"tool_visibility\":{\"get_spend\":\"visible\",\"get_daily\":\"visible\",\"mark_reviewed\":\"visible\",\"read_config\":\"visible\"},\"revealed_tool_names\":[],\"introduced_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":[{\"content\":\"Be brief.\",\"dynamic\":false,\"on_change\":\"rewrite\",\"name\":null,\"id\":\"agent\",\"part_kind\":\"instruction\"}],\"instruction_visibility\":null,\"thinking\":null,\"cache\":null}"
+      },
+      "end_time": 1800000000012000000,
+      "events": [],
+      "name": "chat test",
+      "parent_span_id": 1,
+      "resource": {
+        "deployment.environment.name": "development",
+        "service.name": "support-agent",
+        "service.version": "1.4.0",
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry"
+      },
+      "span_id": 7,
+      "start_time": 1800000000011000000,
+      "status": {
+        "code": "UNSET",
+        "description": null
+      }
+    }
+  ],
+  "turn": {
+    "conversation_id": "thread-1",
+    "tenant_ref": "team_editorial",
+    "user": "ada@acme.example"
+  }
+}

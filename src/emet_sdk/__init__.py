@@ -2,6 +2,7 @@
 
 from emet_sdk._configure import configure
 from emet_sdk._turn import TurnInfo, turn
+from emet_sdk._version import VERSION
 
 __all__ = ["TurnInfo", "configure", "turn"]
-__version__ = "0.1.0.dev0"
+__version__ = VERSION

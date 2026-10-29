@@ -1,0 +1,455 @@
+{
+  "conversation_id": "thread-1",
+  "end": true,
+  "enduser_ref": "ada@acme.example",
+  "ingestion_mode": "sdk",
+  "resource": {
+    "deployment.environment.name": "development",
+    "service.name": "support-agent",
+    "service.version": "1.4.0",
+    "telemetry.sdk.name": "emet-sdk",
+    "telemetry.sdk.version": "0.1.0.dev0"
+  },
+  "semconv_version": "emet-genai-1",
+  "spans": [
+    {
+      "attributes": {
+        "emet.redactions": 6,
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.013000Z",
+      "kind": "turn",
+      "name": "invoke_agent agent",
+      "operation": "invoke_agent",
+      "parent_span_id": "",
+      "span_id": "0000000000000001",
+      "started_at": "2027-01-15T08:00:00.000000Z",
+      "status": "ok"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.request.model": "test"
+      },
+      "ended_at": "2027-01-15T08:00:00.002000Z",
+      "input_tokens": 110,
+      "kind": "model",
+      "model_name": "test",
+      "name": "chat test",
+      "operation": "chat",
+      "output_tokens": 17,
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "input_messages": [
+          {
+            "parts": [
+              {
+                "content": "What did we spend on paid search?",
+                "type": "text"
+              },
+              {
+                "content": "[image/png not sent: 48 bytes, sha256 e2870ac60b4a4694dac5044dda106330179fae5321fd1f58a1db9973c97fa123]",
+                "mime_type": "image/png",
+                "modality": "image",
+                "type": "blob"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "output_messages": [
+          {
+            "parts": [
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__get_spend",
+                "name": "get_spend",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__get_daily",
+                "name": "get_daily",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__mark_reviewed",
+                "name": "mark_reviewed",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {},
+                "id": "pyd_ai_tool_call_id__read_config",
+                "name": "read_config",
+                "type": "tool_call"
+              }
+            ],
+            "role": "assistant"
+          }
+        ],
+        "system_instructions": [
+          {
+            "content": "e1acc691e559cad8cd24b8754e31039f949e473e022e6e3e0726166e335f5d76",
+            "name": "sha256",
+            "type": "prompt_hash"
+          }
+        ],
+        "tool_definitions": [
+          {
+            "description": "Returns spend for a channel.",
+            "name": "get_spend",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns daily spend, a non-object result.",
+            "name": "get_daily",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns nothing.",
+            "name": "mark_reviewed",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns text holding secrets.",
+            "name": "read_config",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "type": "function"
+          }
+        ]
+      },
+      "provider": "test",
+      "span_id": "0000000000000002",
+      "started_at": "2027-01-15T08:00:00.001000Z",
+      "status": "ok"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.007000Z",
+      "kind": "tool",
+      "name": "execute_tool get_spend",
+      "operation": "execute_tool",
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "arguments": {
+          "channel": "a"
+        },
+        "result": {
+          "channel": "a",
+          "currency": "USD",
+          "spend": 48210.55
+        }
+      },
+      "span_id": "0000000000000003",
+      "started_at": "2027-01-15T08:00:00.003000Z",
+      "status": "ok",
+      "tool_call_id": "pyd_ai_tool_call_id__get_spend",
+      "tool_name": "get_spend"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.008000Z",
+      "kind": "tool",
+      "name": "execute_tool get_daily",
+      "operation": "execute_tool",
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "arguments": {
+          "channel": "a"
+        },
+        "result": "[6800,7100,6950]"
+      },
+      "span_id": "0000000000000004",
+      "started_at": "2027-01-15T08:00:00.004000Z",
+      "status": "ok",
+      "tool_call_id": "pyd_ai_tool_call_id__get_daily",
+      "tool_name": "get_daily"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.009000Z",
+      "kind": "tool",
+      "name": "execute_tool mark_reviewed",
+      "operation": "execute_tool",
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "arguments": {
+          "channel": "a"
+        },
+        "result": "null"
+      },
+      "span_id": "0000000000000005",
+      "started_at": "2027-01-15T08:00:00.005000Z",
+      "status": "ok",
+      "tool_call_id": "pyd_ai_tool_call_id__mark_reviewed",
+      "tool_name": "mark_reviewed"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.010000Z",
+      "kind": "tool",
+      "name": "execute_tool read_config",
+      "operation": "execute_tool",
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "arguments": {},
+        "result": "ANTHROPIC_API_KEY=[REDACTED:anthropic_key]\nDATABASE_URL=postgres://app:[REDACTED:url_password]@db.internal:5432/spend"
+      },
+      "span_id": "0000000000000006",
+      "started_at": "2027-01-15T08:00:00.006000Z",
+      "status": "ok",
+      "tool_call_id": "pyd_ai_tool_call_id__read_config",
+      "tool_name": "read_config"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.request.model": "test"
+      },
+      "ended_at": "2027-01-15T08:00:00.012000Z",
+      "input_tokens": 128,
+      "is_final_output": true,
+      "kind": "model",
+      "model_name": "test",
+      "name": "chat test",
+      "operation": "chat",
+      "output_tokens": 41,
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "input_messages": [
+          {
+            "parts": [
+              {
+                "content": "What did we spend on paid search?",
+                "type": "text"
+              },
+              {
+                "content": "[image/png not sent: 48 bytes, sha256 e2870ac60b4a4694dac5044dda106330179fae5321fd1f58a1db9973c97fa123]",
+                "mime_type": "image/png",
+                "modality": "image",
+                "type": "blob"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__get_spend",
+                "name": "get_spend",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__get_daily",
+                "name": "get_daily",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__mark_reviewed",
+                "name": "mark_reviewed",
+                "type": "tool_call"
+              },
+              {
+                "arguments": {},
+                "id": "pyd_ai_tool_call_id__read_config",
+                "name": "read_config",
+                "type": "tool_call"
+              }
+            ],
+            "role": "assistant"
+          },
+          {
+            "parts": [
+              {
+                "id": "pyd_ai_tool_call_id__get_spend",
+                "name": "get_spend",
+                "response": {
+                  "channel": "a",
+                  "currency": "USD",
+                  "spend": 48210.55
+                },
+                "type": "tool_call_response"
+              },
+              {
+                "id": "pyd_ai_tool_call_id__get_daily",
+                "name": "get_daily",
+                "response": "[6800, 7100, 6950]",
+                "type": "tool_call_response"
+              },
+              {
+                "id": "pyd_ai_tool_call_id__mark_reviewed",
+                "name": "mark_reviewed",
+                "type": "tool_call_response"
+              },
+              {
+                "id": "pyd_ai_tool_call_id__read_config",
+                "name": "read_config",
+                "response": "ANTHROPIC_API_KEY=[REDACTED:anthropic_key]\nDATABASE_URL=postgres://app:[REDACTED:url_password]@db.internal:5432/spend",
+                "type": "tool_call_response"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "output_messages": [
+          {
+            "parts": [
+              {
+                "content": "{\"get_spend\":{\"spend\":48210.55,\"currency\":\"USD\",\"channel\":\"a\"},\"get_daily\":[6800,7100,6950],\"mark_reviewed\":null,\"read_config\":\"ANTHROPIC_API_KEY=[REDACTED:anthropic_key]\\nDATABASE_URL=postgres://app:[REDACTED:url_password]@db.internal:5432/spend\"}",
+                "type": "text"
+              }
+            ],
+            "role": "assistant"
+          }
+        ],
+        "system_instructions": [
+          {
+            "content": "e1acc691e559cad8cd24b8754e31039f949e473e022e6e3e0726166e335f5d76",
+            "name": "sha256",
+            "type": "prompt_hash"
+          }
+        ],
+        "tool_definitions": [
+          {
+            "description": "Returns spend for a channel.",
+            "name": "get_spend",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns daily spend, a non-object result.",
+            "name": "get_daily",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns nothing.",
+            "name": "mark_reviewed",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          },
+          {
+            "description": "Returns text holding secrets.",
+            "name": "read_config",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "type": "function"
+          }
+        ]
+      },
+      "provider": "test",
+      "span_id": "0000000000000007",
+      "started_at": "2027-01-15T08:00:00.011000Z",
+      "status": "ok"
+    }
+  ],
+  "tenant_ref": "team_editorial",
+  "trace_id": "0af7651916cd43dd8448eb211c80319c-0000000000000001"
+}

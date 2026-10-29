@@ -315,7 +315,6 @@ wheels = [
 
 [[package]]
 name = "emet-sdk"
-version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "opentelemetry-api" },

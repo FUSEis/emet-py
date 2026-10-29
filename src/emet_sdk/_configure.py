@@ -9,6 +9,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 
 from emet_sdk import _turn
+from emet_sdk._envelope import build_envelope
 from emet_sdk._processor import CapturedTurn, EmetSpanProcessor
 
 logger = logging.getLogger("emet_sdk")
@@ -18,8 +19,11 @@ _processor: EmetSpanProcessor | None = None
 
 
 def _hand_on(captured: CapturedTurn) -> None:
-    # The envelope and transport replace this in the next milestone
-    logger.debug("Emet captured a turn with %d spans", len(captured.spans))
+    envelope = build_envelope(captured)
+    if envelope is None:
+        return
+    # Transport replaces this in the next milestone
+    logger.debug("Emet built a turn with %d spans", len(envelope["spans"]))
 
 
 def configure() -> None:

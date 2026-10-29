@@ -1,0 +1,124 @@
+{
+  "conversation_id": "thread__42__:93bbdb27b0f52b32",
+  "end": true,
+  "enduser_ref": "",
+  "ingestion_mode": "sdk",
+  "resource": {
+    "deployment.environment.name": "development",
+    "service.name": "support-agent",
+    "service.version": "1.4.0",
+    "telemetry.sdk.name": "emet-sdk",
+    "telemetry.sdk.version": "0.1.0.dev0"
+  },
+  "semconv_version": "emet-genai-1",
+  "spans": [
+    {
+      "attributes": {
+        "emet.redactions": 2,
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.005000Z",
+      "error_message": "could not reach postgres://app:[REDACTED:url_password]@db.internal:5432/spend",
+      "error_type": "ConnectionError",
+      "kind": "turn",
+      "name": "invoke_agent agent",
+      "operation": "invoke_agent",
+      "parent_span_id": "",
+      "span_id": "0000000000000001",
+      "started_at": "2027-01-15T08:00:00.000000Z",
+      "status": "error"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent",
+        "gen_ai.request.model": "test"
+      },
+      "ended_at": "2027-01-15T08:00:00.002000Z",
+      "input_tokens": 54,
+      "kind": "model",
+      "model_name": "test",
+      "name": "chat test",
+      "operation": "chat",
+      "output_tokens": 5,
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "input_messages": [
+          {
+            "parts": [
+              {
+                "content": "Is paid search up?",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "output_messages": [
+          {
+            "parts": [
+              {
+                "arguments": {
+                  "channel": "a"
+                },
+                "id": "pyd_ai_tool_call_id__broken",
+                "name": "broken",
+                "type": "tool_call"
+              }
+            ],
+            "role": "assistant"
+          }
+        ],
+        "tool_definitions": [
+          {
+            "description": "Always fails.",
+            "name": "broken",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "channel"
+              ],
+              "type": "object"
+            },
+            "type": "function"
+          }
+        ]
+      },
+      "provider": "test",
+      "span_id": "0000000000000002",
+      "started_at": "2027-01-15T08:00:00.001000Z",
+      "status": "ok"
+    },
+    {
+      "attributes": {
+        "gen_ai.agent.call.id": "agent-call-1",
+        "gen_ai.agent.name": "agent"
+      },
+      "ended_at": "2027-01-15T08:00:00.004000Z",
+      "error_message": "could not reach postgres://app:[REDACTED:url_password]@db.internal:5432/spend",
+      "error_type": "ConnectionError",
+      "kind": "tool",
+      "name": "execute_tool broken",
+      "operation": "execute_tool",
+      "parent_span_id": "0000000000000001",
+      "payload": {
+        "arguments": {
+          "channel": "a"
+        }
+      },
+      "span_id": "0000000000000003",
+      "started_at": "2027-01-15T08:00:00.003000Z",
+      "status": "error",
+      "tool_call_id": "pyd_ai_tool_call_id__broken",
+      "tool_name": "broken"
+    }
+  ],
+  "tenant_ref": "Team Editorial",
+  "trace_id": "0af7651916cd43dd8448eb211c80319c-0000000000000001"
+}
