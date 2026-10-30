@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-30
+
+The first release.
+
 ### Added
 
 - `emet_sdk.turn()` marks one turn of an agent, as a context manager or a decorator, with the Team's External ID, the app's conversation id and the user. The values travel in OpenTelemetry context, never in baggage.

@@ -13,12 +13,18 @@ from emet_sdk._ids import identifier
 from emet_sdk._processor import CapturedTurn
 from emet_sdk._redact import redact
 from emet_sdk._turn import TurnInfo
+from emet_sdk._version import VERSION
 from tests.fixtures import BASE_TIME, fixture_names, load_turn, read, write
+
+# The version the fixtures were recorded with, pinned so a release leaves their bytes, and emet's copies, unchanged
+FIXTURE_SDK_VERSION = "0.1.0.dev0"
 
 
 @pytest.mark.parametrize("name", list(fixture_names()))
 def test_fixture_builds_its_envelope(name: str, request: pytest.FixtureRequest) -> None:
     envelope = build_envelope(load_turn(read(name, "spans")))
+    assert envelope["resource"]["telemetry.sdk.version"] == VERSION
+    envelope["resource"]["telemetry.sdk.version"] = FIXTURE_SDK_VERSION
     if request.config.getoption("--update-fixtures"):
         write(name, "envelope", envelope)
     assert envelope == read(name, "envelope")

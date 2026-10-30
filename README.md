@@ -2,7 +2,11 @@
 
 [Emet](https://emet.so) checks the claims an AI agent makes against the evidence behind them: the tool results and data the agent actually received. `emet-sdk` sends your agent's turns to Emet from the OpenTelemetry GenAI spans your framework already emits.
 
-> In development, not released yet.
+> Early release: the API may change before 1.0.
+
+```sh
+uv add emet-sdk  # or: pip install emet-sdk
+```
 
 ## How it works
 
