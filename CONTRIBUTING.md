@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Bug reports, redaction patterns and fixes are welcome.
+Thanks for helping. Bug reports, redaction patterns and fixes are welcome. Everyone taking part follows our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
