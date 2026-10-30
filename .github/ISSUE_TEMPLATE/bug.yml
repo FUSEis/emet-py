@@ -1,0 +1,32 @@
+name: Bug report
+description: The SDK sent something wrong, skipped a turn, or got in your app's way.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste an Emet key, real prompts, tool results or traces. Replace them with made-up values.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: A minimal agent and turn() call, if you can.
+      render: python
+  - type: textarea
+    id: delivery
+    attributes:
+      label: Delivery result
+      description: The contents of your delivery file or on_delivery result, if you have one. It holds no content or keys, but it names your tools; replace any name you cannot share.
+      render: json
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: emet-sdk 0.1.0, Python 3.12, opentelemetry-sdk 1.38, pydantic-ai 2.63
+    validations:
+      required: true

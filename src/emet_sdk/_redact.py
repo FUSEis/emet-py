@@ -1,4 +1,4 @@
-"""Secret redaction and cleanup applied to every string Emet receives. Patterns are ported from emet-plugin."""
+"""Secret redaction and cleanup applied to every string Emet receives. Patterns match the ones Emet uses elsewhere."""
 
 from __future__ import annotations
 
