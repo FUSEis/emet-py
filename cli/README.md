@@ -2,7 +2,7 @@
 
 Sets up [Emet](https://emet.so) in a Python app. Your coding agent runs the commands; you type the key yourself, so it never enters the agent's context.
 
-> In development, not released yet.
+> Early release, versioned with `emet-sdk`.
 
 ```sh
 uvx emet-cli login          # you, in your own terminal, in the app's folder

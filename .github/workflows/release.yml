@@ -19,18 +19,21 @@ jobs:
       - name: Tag is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-      - run: uv build
+      - run: uv build --all-packages
       - name: Metadata renders on PyPI
         run: uvx twine@7.0.0 check --strict dist/*  # the version the publish action uses
       - name: Tag matches the package version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          ls "dist/emet_sdk-${version}-py3-none-any.whl" "dist/emet_sdk-${version}.tar.gz"
-      - name: Import the wheel in a clean environment
+          for package in emet_sdk emet_cli; do
+            ls "dist/${package}-${version}-py3-none-any.whl" "dist/${package}-${version}.tar.gz"
+          done
+      - name: Install the wheels in a clean environment
         run: |
           uv venv /tmp/smoke
           uv pip install --python /tmp/smoke dist/*.whl
           /tmp/smoke/bin/python -c "import emet_sdk, sys; assert emet_sdk.__version__ == sys.argv[1]" "${GITHUB_REF_NAME#v}"
+          /tmp/smoke/bin/emet-cli --version | grep -Fx "emet-cli ${GITHUB_REF_NAME#v}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist

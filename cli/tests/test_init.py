@@ -156,3 +156,11 @@ def test_the_agent_setup_prompt_pins_this_cli_version() -> None:
     text = (Path(__file__).parents[1] / "AGENT_SETUP.md").read_text()
     pins = set(re.findall(r"emet-cli@([\w.]+)", text))
     assert pins == {VERSION}
+
+
+def test_the_cli_and_the_sdk_release_together() -> None:
+    root = Path(__file__).parents[2]
+    sdk = re.search(r'VERSION = "([^"]+)"', (root / "src/emet_sdk/_version.py").read_text())
+    assert sdk is not None
+    assert sdk.group(1) == VERSION
+    assert f'"emet-sdk=={VERSION}"' in (root / "cli/pyproject.toml").read_text()
