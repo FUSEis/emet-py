@@ -9,7 +9,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "FUSE" }]
 keywords = ["emet", "opentelemetry", "genai", "llm", "agents", "cli"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
@@ -17,8 +17,8 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Typing :: Typed",
 ]
-# The CLI reuses the SDK's endpoint rules, key variable and delivery result, so the two cannot disagree
-dependencies = ["emet-sdk>=0.1.0.dev0"]
+# The CLI reuses the SDK's endpoint rules, key variable and delivery result, so it pins the SDK released with it
+dependencies = ["emet-sdk==0.1.1"]
 
 [project.scripts]
 emet-cli = "emet_cli._main:main"

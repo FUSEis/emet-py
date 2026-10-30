@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-30
+
+The first release of `emet-cli`, versioned together with `emet-sdk` from now on.
+
+### Added
+
+- `emet-cli login` saves the Emet key to the app's `.env` from a hidden prompt, after checking it with Emet without sending a trace. It runs only in a terminal, so a coding agent cannot run it for you, and it records only the key's public prefix elsewhere.
+- `emet-cli init` installs the matching `emet-sdk` with the app's package manager and reports, as JSON for a coding agent, where the agent runs, whether the app loads `.env`, and what to wire. It edits no code.
+- `emet-cli check` reports what is set up without sending anything; `--last` says whether the last turn was captured, and the fix if not.
+- `cli/AGENT_SETUP.md`, the prompt that walks a coding agent through the setup.
+- An example FastAPI agent on Pydantic AI to try the setup on, in `examples/fastapi-pydantic-ai`.
+
+### Changed
+
+- The delivery result names tools in its gap lists (`get_spend`), not their spans (`execute_tool get_spend`).
+- The README is rewritten for a public reader, with a design document in `DESIGN.md`.
+
 ## [0.1.0] - 2026-10-30
 
 The first release.
@@ -21,5 +38,6 @@ The first release.
 - `flush()` waits for finished turns to be sent, and runs for up to 5 seconds at exit.
 - Secrets are redacted from every string, the Emet key included, the system prompt is sent as a SHA-256 hash, inline files and images are replaced by their type, size and digest, and a failed call sends its error message without the stack trace.
 
-[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/FUSEis/emet-py/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/FUSEis/emet-py/releases/tag/v0.1.0

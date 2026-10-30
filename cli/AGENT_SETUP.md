@@ -2,7 +2,7 @@
 
 These are instructions for a coding agent. A developer asked you to connect their Python app to [Emet](https://emet.so), which checks what their AI agent tells users against the evidence it received. Follow the steps in order, and stop to ask the developer wherever a step says so.
 
-Use `uvx emet-cli@0.1.0.dev0` for every command below, so the CLI and the SDK it installs match.
+Use `uvx emet-cli@0.1.1` for every command below, so the CLI and the SDK it installs match.
 
 ## Rules
 
@@ -13,8 +13,8 @@ Use `uvx emet-cli@0.1.0.dev0` for every command below, so the CLI and the SDK it
 ## Steps
 
 1. **Check the stack.** This setup supports Python apps on Pydantic AI. If the app uses something else, stop and point the developer to https://github.com/FUSEis/emet-py#quick-start.
-2. **The key.** Ask the developer to open their own terminal in this folder and run `uvx emet-cli@0.1.0.dev0 login`. Not through you, and not with a `!` prefix: `login` refuses input it cannot read from a keyboard. They need a key for a development Application from Emet's Applications page. Wait until they say it is done.
-3. **Install and survey.** Run `uvx emet-cli@0.1.0.dev0 init --json`. It installs `emet-sdk` with the app's package manager and reports where the agent runs (`agent_runs_at`), how the app loads `.env` (`env_loaded_by`), the snippets to add, and `next_steps`. It edits no code.
+2. **The key.** Ask the developer to open their own terminal in this folder and run `uvx emet-cli@0.1.1 login`. Not through you, and not with a `!` prefix: `login` refuses input it cannot read from a keyboard. They need a key for a development Application from Emet's Applications page. Wait until they say it is done.
+3. **Install and survey.** Run `uvx emet-cli@0.1.1 init --json`. It installs `emet-sdk` with the app's package manager and reports where the agent runs (`agent_runs_at`), how the app loads `.env` (`env_loaded_by`), the snippets to add, and `next_steps`. It edits no code.
 4. **Propose the three values, then wait.** For each place in `agent_runs_at`, find in the app's code:
    - `tenant_ref`: the Emet Team this user's work belongs to, sent as that Team's External ID. If the app has no such value, ask the developer which Team to use, and where the mapping should live.
    - `conversation_id`: the app's own id for the thread or session.
@@ -28,9 +28,9 @@ Use `uvx emet-cli@0.1.0.dev0` for every command below, so the CLI and the SDK it
    - If `env_loaded_by` is empty, make the app load `.env` at startup, with the `dotenv` snippet or its run command's `--env-file .env`.
 
    Show the developer the diff.
-6. **Check the setup.** Run `uvx emet-cli@0.1.0.dev0 check --json` and fix every finding whose `ok` is false. Only the last-turn finding may stay open at this point.
+6. **Check the setup.** Run `uvx emet-cli@0.1.1 check --json` and fix every finding whose `ok` is false. Only the last-turn finding may stay open at this point.
 7. **One real turn.** Start the app from this folder, in the background. If you cannot, because a sandbox blocks the network or the app logs "Emet is off", ask the developer to start it in their own terminal. Ask them to send one harmless question through the app, and to tell you when it has answered.
-8. **Confirm and report.** Run `uvx emet-cli@0.1.0.dev0 check --last --json`. Tell the developer:
+8. **Confirm and report.** Run `uvx emet-cli@0.1.1 check --last --json`. Tell the developer:
    - whether the turn was **captured**, with the trace id; or what went wrong, and the fix `check` gave;
    - that they can see the run under AI usage at https://app.emet.so/ai-usage. The list there shows that the run arrived; "captured" comes only from `check --last`.
 
