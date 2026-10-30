@@ -159,6 +159,8 @@ def test_a_sent_turn_reports_what_emet_took() -> None:
 
 def test_gaps_name_the_tools_across_batches(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_transport, "BATCH_MAX_SPANS", 2)
+    turn = envelope(4)
+    turn["spans"][1]["name"] = "execute_tool tool0"
     gaps = {"missing_tool_arguments": ["s0"], "missing_tool_results": [], "conflicting_final_outputs": []}
     later = {
         "missing_tool_arguments": ["s0", "s2"],
@@ -166,7 +168,7 @@ def test_gaps_name_the_tools_across_batches(monkeypatch: pytest.MonkeyPatch) -> 
         "conflicting_final_outputs": [],
     }
     emet = FakeEmet([accepted(2, gaps=gaps), accepted(2, gaps=later, unattributed=True)])
-    result = emet.sender().send(envelope(4))
+    result = emet.sender().send(turn)
     assert result["gaps"] == {
         "missing_tool_arguments": ["tool0", "tool2"],
         "missing_tool_results": ["unknown"],

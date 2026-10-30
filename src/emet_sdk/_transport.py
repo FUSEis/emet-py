@@ -130,7 +130,11 @@ class Sender:
 
     def send(self, envelope: dict[str, Any]) -> DeliveryResult:
         batches = split(envelope)
-        names = {s["span_id"]: s.get("name", "") for s in envelope["spans"]}
+        # GenAI tool spans are named "execute_tool <tool>"; gaps name the tool
+        names = {
+            s["span_id"]: str(s.get("name", "")).removeprefix("execute_tool " if s.get("kind") == "tool" else "")
+            for s in envelope["spans"]
+        }
         result = new_result("sent", trace_id=envelope["trace_id"])
         for index, batch in enumerate(batches):
             outcome = self._send_batch(batch)
