@@ -117,6 +117,7 @@ def test_a_configured_app_sends_its_turns_and_reports_them(
 ) -> None:
     results: list[DeliveryResult] = []
     emet_sdk.configure(service_name="support-agent", on_delivery=results.append)
+    assert _configure._worker is not None
     with caplog.at_level(logging.INFO, logger="emet_sdk"):
         chat_turn(f"my key is {KEY}")
         chat_turn()
@@ -175,6 +176,7 @@ def test_problems_are_logged_when_the_outcome_changes(
 ) -> None:
     answers = [
         {"accepted": 2, "unattributed": True, "late": True, "gaps": {"missing_tool_results": ["x"]}},
+        {"accepted": 2, "unattributed": True, "late": True, "gaps": {"missing_tool_results": ["y"]}},
         None,
     ]
 
@@ -188,8 +190,10 @@ def test_problems_are_logged_when_the_outcome_changes(
     emet_sdk.configure()
     chat_turn()
     chat_turn()
+    chat_turn()
     assert emet_sdk.flush(5)
     assert "tenant_ref matched no Team; it arrived after the trace closed; missing_tool_results: x" in caplog.text
+    assert "missing_tool_results: y" in caplog.text
     assert "stopped sending turn" in caplog.text
     assert "http_4xx (permission_denied)" in caplog.text
 

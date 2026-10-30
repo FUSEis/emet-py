@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import email.utils
+import http.client
 import json
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, cast
 from urllib.parse import urlsplit
 
@@ -42,6 +45,10 @@ def check_endpoint(url: str) -> str:
     parts = urlsplit(url.strip())
     if parts.username or parts.password or parts.path not in ("", "/") or parts.query or parts.fragment:
         raise ValueError(f"Emet's endpoint is an origin such as {DEFAULT_ENDPOINT}, not {url!r}")
+    try:
+        parts.port  # noqa: B018  (raises on a malformed port)
+    except ValueError:
+        raise ValueError(f"Emet's endpoint has an invalid port: {url!r}") from None
     origin = f"{parts.scheme}://{parts.netloc}"
     if origin == DEFAULT_ENDPOINT:
         return origin
@@ -56,14 +63,16 @@ def split(envelope: dict[str, Any]) -> list[dict[str, Any]]:
     spans: list[dict[str, Any]] = envelope["spans"]
     # Emet seals a trace as soon as its turn span lands, so it goes last
     ordered = [s for s in spans if s.get("kind") != "turn"] + [s for s in spans if s.get("kind") == "turn"]
+    # Every batch repeats the header, so it counts against each one
+    base = len(_encode({**header, "spans": [], "end": False}))
     groups: list[list[dict[str, Any]]] = [[]]
-    size = 0
+    size = base
     for span in ordered:
-        span_bytes = len(_encode(span))
+        span_bytes = len(_encode(span)) + 1
         current = groups[-1]
         if current and (len(current) >= BATCH_MAX_SPANS or size + span_bytes > BATCH_MAX_BYTES):
             groups.append([])
-            size = 0
+            size = base
         groups[-1].append(span)
         size += span_bytes
     return [{**header, "spans": group, "end": index == len(groups) - 1} for index, group in enumerate(groups)]
@@ -164,7 +173,8 @@ class Sender:
                 if not isinstance(error.reason, TimeoutError):
                     return _Outcome(reason="unreachable")
                 reason = "timeout"
-            except OSError:
+            except (OSError, http.client.HTTPException):
+                # HTTPException covers a connection closed mid-response
                 return _Outcome(reason="unreachable")
             else:
                 if reply.status == 202:
@@ -208,11 +218,19 @@ def _dict(value: Any) -> dict[str, Any]:
 
 def _retry_after(headers: dict[str, str]) -> float:
     value = next((v for k, v in headers.items() if k.lower() == "retry-after"), "")
+    if not value:
+        return 1.0
     try:
         return max(0.0, float(value))
     except ValueError:
-        # Missing, or an HTTP date: too long to wait inside a batch
-        return 1.0 if not value else MAX_RETRY_AFTER + 1
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return MAX_RETRY_AFTER + 1
+    if when.tzinfo is None:
+        return MAX_RETRY_AFTER + 1
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
 def _int(value: Any) -> int:

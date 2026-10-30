@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import os
 import threading
@@ -15,6 +16,7 @@ from emet_sdk import _turn
 from emet_sdk._delivery import DeliveryResult, captured, new_result
 from emet_sdk._envelope import TurnSkipped, build_envelope
 from emet_sdk._processor import CapturedTurn, EmetSpanProcessor
+from emet_sdk._redact import Scrubber
 from emet_sdk._transport import DEFAULT_ENDPOINT, Sender, check_endpoint
 from emet_sdk._worker import Worker
 
@@ -52,11 +54,18 @@ class _Pipeline:
         except TurnSkipped as skipped:
             return new_result("skipped", skipped.reason)
         if self._service_name:
-            envelope["resource"]["service.name"] = self._service_name
+            envelope["resource"]["service.name"] = Scrubber(self._secrets).text(self._service_name)
         return self._sender.send(envelope)
 
     def deliver(self, result: DeliveryResult) -> None:
-        outcome = (result["status"], result["reason"], result["code"], captured(result))
+        outcome = (
+            result["status"],
+            result["reason"],
+            result["code"],
+            result["unattributed"],
+            result["late"] or result["late_after_retry"],
+            json.dumps(result["gaps"], sort_keys=True),
+        )
         if outcome != self._last_outcome:
             self._last_outcome = outcome
             self._log(result)

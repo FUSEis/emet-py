@@ -56,7 +56,7 @@ def test_a_failing_turn_does_not_stop_the_thread(caplog: pytest.LogCaptureFixtur
     worker.submit(turn("bad"))
     worker.submit(turn("good"))
     assert worker.flush(5)
-    assert len(delivered) == 1
+    assert [(r["status"], r["reason"]) for r in delivered] == [("stopped", "sdk_error"), ("sent", "")]
     assert "failed to send a turn" in caplog.text
 
 
@@ -102,3 +102,16 @@ def test_a_turn_finishing_during_shutdown_is_dropped(
     worker.submit(turn("late"))
     assert worker.flush(0.1)
     assert "while the app was exiting" in caplog.text
+
+
+def test_flush_from_on_delivery_returns_at_once() -> None:
+    answers: list[bool] = []
+    worker: Worker
+
+    def deliver(result: DeliveryResult) -> None:
+        answers.append(worker.flush(5))
+
+    worker = Worker(lambda captured: new_result("sent"), deliver)
+    worker.submit(turn("a"))
+    assert worker.flush(5)
+    assert answers == [False]

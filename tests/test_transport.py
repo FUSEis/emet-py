@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import email.utils
+import http.client
 import http.server
 import json
 import socket
@@ -7,6 +9,7 @@ import threading
 import urllib.error
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar
 
 import pytest
@@ -101,6 +104,8 @@ def test_production_and_localhost_are_the_only_endpoints() -> None:
         "https://app.emet.so/api/v1/traces/",
         "https://user:pw@app.emet.so",
         "ftp://localhost",
+        "http://localhost:abc",
+        "http://localhost:99999",
     ):
         with pytest.raises(ValueError):
             check_endpoint(bad)
@@ -142,6 +147,7 @@ def test_a_sent_turn_reports_what_emet_took() -> None:
         "accepted": 3,
         "batches_sent": 1,
     }
+    assert datetime.fromisoformat(result["written_at"]).tzinfo is not None
     assert emet.headers[0] == {
         "Authorization": f"Bearer {KEY}",
         "Content-Type": "application/json",
@@ -210,8 +216,9 @@ def test_the_first_refused_batch_stops_the_turn(monkeypatch: pytest.MonkeyPatch)
         ([urllib.error.URLError(TimeoutError()), TimeoutError()], "timeout", "", 2),
         ([urllib.error.URLError(ConnectionRefusedError())], "unreachable", "", 1),
         ([ConnectionResetError()], "unreachable", "", 1),
+        ([http.client.IncompleteRead(b"{")], "unreachable", "", 1),
         ([error(429, headers={"Retry-After": "3600"})], "rate_limited", "", 1),
-        ([error(429, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"})], "rate_limited", "", 1),
+        ([error(429, headers={"Retry-After": "Wed, 21 Oct 2099 07:28:00 GMT"})], "rate_limited", "", 1),
         ([error(429, headers={"retry-after": "2"}), error(429, headers={"Retry-After": "2"})], "rate_limited", "", 2),
     ],
 )
@@ -308,3 +315,22 @@ def test_an_unreachable_local_emet_stops_the_turn() -> None:
         port = sock.getsockname()[1]
     result = Sender(f"http://127.0.0.1:{port}", KEY).send(envelope(3))
     assert (result["status"], result["reason"]) == ("stopped", "unreachable")
+
+
+def test_a_retry_after_date_a_moment_away_is_waited_for() -> None:
+    soon = email.utils.format_datetime(datetime.now(timezone.utc) + timedelta(seconds=3), usegmt=True)
+    emet = FakeEmet([error(429, headers={"Retry-After": soon}), accepted(3)])
+    assert emet.sender().send(envelope(3))["status"] == "sent"
+    assert 0 < emet.slept[0] <= 3
+
+
+def test_the_repeated_header_counts_against_each_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    turn = envelope(5, payload="y" * 100)
+    turn["resource"] = {"service.name": "z" * 900}
+    span_bytes = len(json.dumps(turn["spans"][1], separators=(",", ":")))
+    limit = 1100 + 2 * span_bytes  # the header alone is over 1000 bytes
+    monkeypatch.setattr(_transport, "BATCH_MAX_BYTES", limit)
+    batches = split(turn)
+    # Counting only spans would have fit more than two per batch
+    assert [len(b["spans"]) for b in batches] == [2, 2, 1]
+    assert all(len(json.dumps(b, ensure_ascii=False, separators=(",", ":")).encode()) <= limit for b in batches)

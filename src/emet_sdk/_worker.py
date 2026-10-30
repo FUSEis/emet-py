@@ -9,7 +9,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 
-from emet_sdk._delivery import DeliveryResult
+from emet_sdk._delivery import DeliveryResult, new_result
 from emet_sdk._processor import CapturedTurn
 
 logger = logging.getLogger("emet_sdk")
@@ -55,6 +55,9 @@ class Worker:
 
     def flush(self, timeout: float) -> bool:
         """Waits until every queued turn is handled. Returns False when the timeout ran out first."""
+        if threading.current_thread() is self._thread:
+            # Called from on_delivery: the turn being delivered cannot finish while it waits
+            return False
         deadline = time.monotonic() + timeout
         with self._cond:
             while self._pending:
@@ -73,10 +76,14 @@ class Worker:
                 captured = self._queue.popleft()
             try:
                 result = self._handle(captured)
-                if result is not None:
-                    self._deliver(result)
             except Exception:  # the thread must survive any one turn
                 logger.exception("Emet failed to send a turn")
+                result = new_result("stopped", "sdk_error")
+            try:
+                if result is not None:
+                    self._deliver(result)
+            except Exception:
+                logger.exception("Emet failed to report a turn")
             finally:
                 with cond:
                     self._pending -= 1

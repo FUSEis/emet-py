@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -53,6 +54,12 @@ class EmetSpanProcessor(SpanProcessor):
 
     def __init__(self, on_turn: Callable[[CapturedTurn], None]) -> None:
         self._on_turn = on_turn
+        self._reset()
+        if hasattr(os, "register_at_fork"):  # not on Windows
+            os.register_at_fork(after_in_child=self._reset)
+
+    def _reset(self) -> None:
+        # A forked child may inherit the lock held by a parent thread; its turns belong to the parent
         self._lock = threading.Lock()
         self._live: dict[int, _Live] = {}
         self._span_turns: dict[tuple[int, int], int] = {}
