@@ -67,12 +67,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-      - run: uv build
-      - name: Import the wheel in a clean environment
+      - run: uv build --all-packages
+      - name: Import the wheels in a clean environment
         run: |
           uv venv /tmp/smoke
           uv pip install --python /tmp/smoke dist/*.whl
           /tmp/smoke/bin/python -c "import emet_sdk; print(emet_sdk.__version__)"
+          /tmp/smoke/bin/emet-cli --version
 
   # The one check branch protection requires, so the matrix can change without touching the rules
   ci:

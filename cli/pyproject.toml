@@ -1,0 +1,42 @@
+[project]
+name = "emet-cli"
+dynamic = ["version"]
+description = "Set up Emet in your Python app: your coding agent does the work, you type the key"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "FUSE" }]
+keywords = ["emet", "opentelemetry", "genai", "llm", "agents", "cli"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Typing :: Typed",
+]
+# The CLI reuses the SDK's endpoint rules, key variable and delivery result, so the two cannot disagree
+dependencies = ["emet-sdk>=0.1.0.dev0"]
+
+[project.scripts]
+emet-cli = "emet_cli._main:main"
+
+[project.urls]
+Homepage = "https://emet.so"
+Source = "https://github.com/FUSEis/emet-py"
+Issues = "https://github.com/FUSEis/emet-py/issues"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/emet_cli/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/emet_cli"]
+
+[tool.uv.sources]
+emet-sdk = { workspace = true }

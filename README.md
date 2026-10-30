@@ -44,6 +44,8 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright
 
 To release, bump `src/emet_sdk/_version.py` and the changelog in a PR. Once it has merged, tag the merge commit `vX.Y.Z` and push the tag. The release workflow checks that the tag is on `main` and matches the version, builds and smoke-tests the wheel, then waits for approval in the `release` environment before publishing to PyPI through trusted publishing.
 
+The repository also holds [`emet-cli`](cli/README.md), which sets the SDK up in your app with your coding agent. It is in development.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute, and [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## License
