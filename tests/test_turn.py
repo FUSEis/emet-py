@@ -73,10 +73,11 @@ def test_a_span_that_outlives_the_block_holds_the_turn_open(harness: Harness) ->
     assert names(harness.turns[0]) == ["background"]
 
 
-def test_a_block_with_no_spans_hands_on_nothing(harness: Harness) -> None:
+def test_a_block_with_no_spans_hands_on_an_empty_turn(harness: Harness) -> None:
     with emet_sdk.turn("t", "c"):
         pass
-    assert harness.turns == []
+    [captured] = harness.turns
+    assert captured.spans == ()
 
 
 def test_two_turns_in_one_request_stay_apart(harness: Harness) -> None:
@@ -150,7 +151,7 @@ def test_a_turn_over_the_live_cap_is_skipped(
     monkeypatch.setattr(_processor, "MAX_LIVE_TURNS", 0)
     with emet_sdk.turn("t", "c"), harness.tracer.start_as_current_span("chat"):
         pass
-    assert harness.turns == []
+    assert [(t.spans, t.skipped) for t in harness.turns] == [((), "state_cap")]
     assert "turns are already in progress" in caplog.text
 
 
@@ -165,7 +166,10 @@ def test_a_stale_turn_is_given_up(
     with caplog.at_level(logging.WARNING), emet_sdk.turn("t", "next"), harness.tracer.start_as_current_span("chat"):
         pass
     stuck.end()
-    assert [t.info.conversation_id for t in harness.turns] == ["next"]
+    assert [(t.info.conversation_id, t.skipped) for t in harness.turns] == [
+        ("stuck", "span_never_ended"),
+        ("next", ""),
+    ]
     assert "gave up on a turn" in caplog.text
 
 

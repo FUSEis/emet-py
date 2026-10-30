@@ -8,7 +8,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import SpanContext, Status, StatusCode
 
-from emet_sdk._envelope import build_envelope
+from emet_sdk._envelope import TurnSkipped, build_envelope
 from emet_sdk._ids import identifier
 from emet_sdk._processor import CapturedTurn
 from emet_sdk._redact import redact
@@ -191,11 +191,13 @@ def test_several_agent_runs_fold_into_one_turn() -> None:
 
 
 def test_a_turn_with_no_genai_span_builds_nothing() -> None:
-    assert build_envelope(turn_of(span(1, None, "POST /chat"))) is None
+    with pytest.raises(TurnSkipped, match="no_genai_spans"):
+        build_envelope(turn_of(span(1, None, "POST /chat")))
 
 
 def test_an_overlong_tenant_ref_skips_the_turn() -> None:
-    assert build_envelope(turn_of(span(1, None, "chat", op("chat")), tenant_ref="x" * 256)) is None
+    with pytest.raises(TurnSkipped, match="tenant_ref_too_long"):
+        build_envelope(turn_of(span(1, None, "chat", op("chat")), tenant_ref="x" * 256))
 
 
 def test_a_bare_model_call_keeps_its_payload_under_a_turn_of_its_own() -> None:
@@ -264,9 +266,16 @@ def test_plain_text_system_instructions_are_hashed() -> None:
     assert "Be brief." not in json.dumps(envelope)
 
 
+def test_a_turn_the_processor_gave_up_keeps_its_reason() -> None:
+    captured = turn_of(span(1, None, "chat", op("chat")))
+    with pytest.raises(TurnSkipped, match="span_never_ended"):
+        build_envelope(CapturedTurn(captured.info, (), skipped="span_never_ended"))
+
+
 def test_a_turn_over_the_span_cap_is_skipped() -> None:
     captured = turn_of(span(1, None, "chat", op("chat")))
-    assert build_envelope(CapturedTurn(captured.info, captured.spans, dropped_spans=1)) is None
+    with pytest.raises(TurnSkipped, match="state_cap"):
+        build_envelope(CapturedTurn(captured.info, captured.spans, dropped_spans=1))
 
 
 def test_metadata_strings_are_redacted() -> None:

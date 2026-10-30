@@ -57,20 +57,31 @@ MAX_TOKENS = 2_147_483_647
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dict[str, Any] | None:
-    """Returns the envelope for one turn, or None when it has nothing Emet can take."""
+class TurnSkipped(Exception):
+    """The turn has nothing Emet can take; reason goes in the delivery result."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Returns the envelope for one turn, or raises TurnSkipped when it has nothing Emet can take."""
     info = captured.info
+    if captured.skipped:
+        raise TurnSkipped(captured.skipped)
+    if not captured.spans:
+        # Sampled out, or no instrumented agent ran inside turn()
+        raise TurnSkipped("no_spans")
     if len(info.tenant_ref) > 255:
-        logger.warning("Emet skipped a turn: tenant_ref is over 255 characters")
-        return None
+        raise TurnSkipped("tenant_ref_too_long")
     if captured.dropped_spans:
         # The turn's own root may be among the dropped spans, so the tree cannot be trusted
-        logger.warning("Emet skipped a turn: it had more spans than it keeps")
-        return None
+        raise TurnSkipped("state_cap")
     spans = sorted(captured.spans, key=lambda s: (s.start_time or 0, _span_id(s)))
     candidates = [s for s in spans if isinstance(_attrs(s).get(OPERATION), str)]
     if not candidates:
-        return None
+        raise TurnSkipped("no_genai_spans")
     candidate_ids = {_span_id(s) for s in candidates}
     parents = {_span_id(s): _parent_id(s) for s in spans}
 

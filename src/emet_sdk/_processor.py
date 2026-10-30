@@ -23,11 +23,15 @@ TURN_TTL_SECONDS = 600.0
 
 @dataclass(frozen=True)
 class CapturedTurn:
-    """A finished turn: the turn() values and every span that started inside the block."""
+    """A finished turn: the turn() values and every span that started inside the block.
+
+    skipped names why a turn was given up before it finished; it then reaches the delivery result and nothing else.
+    """
 
     info: TurnInfo
     spans: tuple[ReadableSpan, ...]
     dropped_spans: int = 0
+    skipped: str = ""
 
 
 @dataclass
@@ -56,11 +60,14 @@ class EmetSpanProcessor(SpanProcessor):
     def turn_opened(self, info: TurnInfo) -> None:
         now = time.monotonic()
         with self._lock:
-            self._evict_stale(now)
+            given_up = self._evict_stale(now)
             if len(self._live) >= MAX_LIVE_TURNS:
                 logger.warning("Emet skipped a turn: %d turns are already in progress", MAX_LIVE_TURNS)
-                return
-            self._live[info.id] = _Live(info, opened_at=now)
+                given_up.append(CapturedTurn(info, (), skipped="state_cap"))
+            else:
+                self._live[info.id] = _Live(info, opened_at=now)
+        for captured in given_up:
+            self._emit(captured)
 
     def turn_closed(self, info: TurnInfo) -> None:
         with self._lock:
@@ -127,16 +134,17 @@ class EmetSpanProcessor(SpanProcessor):
             logger.warning("Emet dropped %d spans from a turn over %d spans", live.dropped_spans, MAX_SPANS_PER_TURN)
         return CapturedTurn(live.info, tuple(live.spans), live.dropped_spans)
 
-    def _evict_stale(self, now: float) -> None:
+    def _evict_stale(self, now: float) -> list[CapturedTurn]:
         stale = [live for live in self._live.values() if now - live.opened_at > TURN_TTL_SECONDS]
         for live in stale:
             del self._live[live.info.id]
             for key in live.open_spans:
                 self._span_turns.pop(key, None)
             logger.warning("Emet gave up on a turn still open after %d seconds", TURN_TTL_SECONDS)
+        return [CapturedTurn(live.info, (), skipped="span_never_ended") for live in stale]
 
     def _emit(self, done: CapturedTurn | None) -> None:
-        if done is None or not done.spans:
+        if done is None:
             return
         try:
             self._on_turn(done)

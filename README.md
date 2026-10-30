@@ -2,7 +2,7 @@
 
 [Emet](https://emet.so) checks the claims an AI agent makes against the evidence behind them: the tool results and data the agent actually received. `emet-sdk` sends your agent's turns to Emet from the OpenTelemetry GenAI spans your framework already emits.
 
-> In development. Turns are collected and built into Emet's envelope but not sent yet; the first release adds the transport.
+> In development, not released yet.
 
 ## How it works
 
@@ -10,7 +10,7 @@
 import emet_sdk
 from pydantic_ai import Agent
 
-emet_sdk.configure()
+emet_sdk.configure(service_name="support-agent", on_delivery=emet_sdk.write_delivery_file(".emet/last-delivery.json"))
 Agent.instrument_all()
 
 
@@ -28,6 +28,8 @@ async def chat(body: ChatIn, user=Depends(current_user)):
 - **Nothing written onto your spans.** The tenant, conversation and user stay in the SDK and never reach your other exporters, or downstream services through baggage.
 - **No secrets, no system prompt.** Secrets are redacted from everything sent, and the system prompt travels as a hash.
 - **The user** is who triggered the turn, usually their email. Emet matches it to a member of your organization and stores it on the trace either way.
+- **Never in your way.** Turns are sent on a background thread and never raise into your app. Without `EMET_APPLICATION_KEY`, the app logs "Emet is off" once and runs as before. Call `emet_sdk.flush()` before a short-lived process exits; Emet also flushes for up to 5 seconds at exit.
+- **Every turn reports back.** `on_delivery` receives a result per turn: `sent`, `stopped` (with the reason, such as `timeout` or `http_4xx` and Emet's error code) or `skipped`, plus the trace, the span count and any tools Emet found missing arguments or results. `write_delivery_file` saves the latest one for `emet-cli check --last`; it never holds the key, the tenant, the user or any content.
 
 Supported: Python 3.10 or later; Pydantic AI (Python 3.11 or later). Google ADK is planned.
 
