@@ -20,3 +20,6 @@ The first release.
 - The delivery result reports each turn as `sent`, `stopped` or `skipped` with its reason; `write_delivery_file()` saves it atomically for `emet-cli check --last`. A log line names the outcome on the first turn and whenever it changes.
 - `flush()` waits for finished turns to be sent, and runs for up to 5 seconds at exit.
 - Secrets are redacted from every string, the Emet key included, the system prompt is sent as a SHA-256 hash, inline files and images are replaced by their type, size and digest, and a failed call sends its error message without the stack trace.
+
+[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/FUSEis/emet-py/releases/tag/v0.1.0

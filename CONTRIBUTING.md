@@ -33,3 +33,11 @@ uv run python -m tests.record_fixtures && uv run pytest --update-fixtures
 - One change per pull request, with tests.
 - Update `CHANGELOG.md` under Unreleased when behavior or the data sent changes.
 - Pull requests are squash merged once CI passes and a maintainer approves.
+
+## Releasing
+
+Maintainers release from `main`. `emet-sdk` and `emet-cli` share a version.
+
+1. In a pull request, bump `src/emet_sdk/_version.py` and `cli/src/emet_cli/_version.py`, and move the changelog's Unreleased entries under the new version.
+2. Once it has merged, tag the merge commit `vX.Y.Z` and push the tag. Only repository admins can create release tags.
+3. The release workflow checks that the tag is on `main` and matches the version, builds once, smoke-tests the wheels in a clean environment, and waits for a maintainer's approval in the `release` environment. It then publishes to PyPI through trusted publishing, with attestations.
