@@ -43,8 +43,15 @@ path = "src/emet_sdk/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/emet_sdk"]
 
+[tool.uv.workspace]
+members = ["cli"]
+
+[tool.uv.sources]
+emet-cli = { workspace = true }
+
 [dependency-groups]
 dev = [
+    "emet-cli",
     # Pydantic AI needs Python 3.11; its tests skip on 3.10
     "pydantic-ai-slim==2.63.0; python_version >= '3.11'",
     "pyright==1.1.414",
@@ -55,12 +62,12 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "cli/tests"]
 addopts = "-ra --strict-markers"
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["emet_sdk"]
+source = ["emet_sdk", "emet_cli"]
 branch = true
 
 [tool.coverage.report]
@@ -70,19 +77,22 @@ show_missing = true
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-src = ["src", "tests"]
+src = ["src", "tests", "cli/src", "cli/tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"cli/tests/**" = ["S101", "S603", "S607"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "cli/src", "cli/tests"]
 pythonVersion = "3.10"
 typeCheckingMode = "strict"
 executionEnvironments = [
     { root = "src" },
+    { root = "cli/src", extraPaths = ["src"], reportPrivateUsage = false },
+    { root = "cli/tests", extraPaths = ["src", "cli/src", "."], reportPrivateUsage = false, reportUnknownMemberType = false, reportUnknownVariableType = false, reportUnknownArgumentType = false, reportMissingTypeStubs = false },
     { root = "tests", extraPaths = ["."], reportPrivateUsage = false, reportUnknownMemberType = false, reportUnknownVariableType = false, reportUnknownArgumentType = false, reportMissingTypeStubs = false },
 ]
