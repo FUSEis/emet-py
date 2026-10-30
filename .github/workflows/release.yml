@@ -20,6 +20,8 @@ jobs:
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: uv build
+      - name: Metadata renders on PyPI
+        run: uvx twine@7.0.0 check --strict dist/*  # the version the publish action uses
       - name: Tag matches the package version
         run: |
           version="${GITHUB_REF_NAME#v}"

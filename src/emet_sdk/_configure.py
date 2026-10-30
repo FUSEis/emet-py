@@ -23,7 +23,7 @@ from emet_sdk._worker import Worker
 logger = logging.getLogger("emet_sdk")
 
 KEY_VARIABLE = "EMET_APPLICATION_KEY"
-OFF_MESSAGE = f"Emet is off: {KEY_VARIABLE} is not set. Locally, run `uvx emet-cli login`."
+OFF_MESSAGE = f"Emet is off: {KEY_VARIABLE} is not set. Create a key for your Application in Emet and set it."
 EXIT_FLUSH_SECONDS = 5.0
 
 _lock = threading.Lock()

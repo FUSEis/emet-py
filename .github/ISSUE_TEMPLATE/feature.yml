@@ -1,0 +1,14 @@
+name: Feature request
+description: A framework to support, a redaction pattern, or a change to the API.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need and why
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: What it could look like

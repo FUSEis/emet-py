@@ -1,6 +1,6 @@
 # Decoded JSON is untyped by nature
 # pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
-"""Builds Emet's v1 envelope from a captured turn's GenAI spans, following otel-mapping.md in the emet repo."""
+"""Builds Emet's v1 envelope from a captured turn's GenAI spans, following the OpenTelemetry GenAI conventions."""
 
 from __future__ import annotations
 
