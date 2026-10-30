@@ -22,7 +22,7 @@ CI runs the tests on Python 3.10 to 3.14 and on the oldest OpenTelemetry the pac
 
 ## Fixtures
 
-`tests/fixtures` holds spans recorded from real Pydantic AI runs on its offline test model, and the envelope each one must build. Every value in them is synthetic, the secrets included. To change what the SDK sends, rerecord and rebuild them, then review the diff:
+`tests/fixtures` holds spans recorded from real Pydantic AI runs on its offline test model, and the envelope each one must build. Every value in them is synthetic, the secrets included. To change what the SDK sends, rerecord and rebuild them on Python 3.11 or later (Pydantic AI needs it), then review the diff:
 
 ```sh
 uv run python -m tests.record_fixtures && uv run pytest --update-fixtures

@@ -2,6 +2,9 @@ name: Feature request
 description: A framework to support, a redaction pattern, or a change to the API.
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: Issues are public. Describe your use case with made-up examples, never real prompts, data or keys.
   - type: textarea
     id: need
     attributes:

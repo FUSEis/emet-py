@@ -21,7 +21,7 @@ body:
     id: delivery
     attributes:
       label: Delivery result
-      description: The contents of your delivery file or on_delivery result, if you have one. It holds no content or keys.
+      description: The contents of your delivery file or on_delivery result, if you have one. It holds no content or keys, but it names your tools; replace any name you cannot share.
       render: json
   - type: input
     id: versions
