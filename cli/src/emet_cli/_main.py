@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from emet_cli._check import check, render
+from emet_cli._init import init, render_init
 from emet_cli._login import login
 from emet_cli._version import VERSION
 from emet_sdk._transport import DEFAULT_ENDPOINT
@@ -23,6 +24,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     login_parser.add_argument(
         "--endpoint", default=DEFAULT_ENDPOINT, help="Emet's address; only localhost is allowed besides production"
     )
+    init_parser = commands.add_parser("init", help="Install emet-sdk and report what to wire. Edits no code.")
+    init_parser.add_argument("--no-install", action="store_true", help="Report only; do not install emet-sdk")
+    init_parser.add_argument("--json", action="store_true", help="Print the report as JSON, for your coding agent")
     check_parser = commands.add_parser("check", help="Report what is set up. Sends nothing.")
     check_parser.add_argument("--last", action="store_true", help="Also say whether the last turn was captured")
     check_parser.add_argument("--json", action="store_true", help="Print the report as JSON, for your coding agent")
@@ -31,6 +35,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "login":
             return login(root, args.endpoint)
+        if args.command == "init":
+            code, report = init(root, install=not args.no_install)
+            print(json.dumps(report, indent=2) if args.json else render_init(report))
+            return code
         code, report = check(root, last=args.last)
         print(json.dumps(report, indent=2) if args.json else render(report))
         return code
