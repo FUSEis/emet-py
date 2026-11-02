@@ -5,6 +5,11 @@ A small spend assistant behind `POST /chat`, deliberately **not** connected to E
 ```sh
 cd examples/fastapi-pydantic-ai
 uv run uvicorn main:app --port 8001
+```
+
+Open http://localhost:8001, pick Maya or Theo, and ask a question. Or call the API directly:
+
+```sh
 curl -s localhost:8001/chat -H 'content-type: application/json' -H 'x-demo-user: maya@marlowhome.example' \
   -d '{"message": "What did we spend on paid search?", "thread_id": "thread-1"}'
 ```
