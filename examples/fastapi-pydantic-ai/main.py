@@ -45,7 +45,8 @@ class ChatIn(BaseModel):
 
 
 def current_user(x_demo_user: Annotated[str, Header()]) -> User:
-    """Stands in for real auth: the server looks the user up, it never trusts the request for who they are."""
+    """Stands in for real auth. A real app checks a session or token here; this demo trusts the header and only
+    looks the user up in its own records, so never copy it as an auth pattern."""
     user = USERS.get(x_demo_user)
     if user is None:
         raise HTTPException(status_code=401, detail="unknown user")

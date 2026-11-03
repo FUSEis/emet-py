@@ -50,7 +50,7 @@
   </header>
   <section id="log" aria-live="polite"><p class="empty">Ask about spend on paid search, social or display.</p></section>
   <form id="ask">
-    <input id="question" autocomplete="off" value="What did we spend on paid search?" aria-label="Your question">
+    <input id="question" autocomplete="off" value="What did we spend on paid search?" placeholder="Ask about paid search, social or display" aria-label="Your question">
     <button id="send" type="submit">Ask</button>
   </form>
   <div class="foot"><span>Conversation <code id="thread"></code></span><button id="fresh" type="button">New conversation</button></div>
@@ -91,9 +91,14 @@
         headers: { "content-type": "application/json", "x-demo-user": user.value },
         body: JSON.stringify({ message, thread_id: thread }),
       });
-      const body = await response.json();
-      add("agent", "Assistant", response.ok ? body.answer : "Error: " + (body.detail || response.status));
-    } catch (error) {
+      if (!response.ok) {
+        let detail = "";
+        try { const body = await response.json(); if (typeof body.detail === "string") detail = ": " + body.detail; } catch {}
+        add("agent", "Assistant", "The app returned an error (" + response.status + detail + "). Check its terminal for details.");
+      } else {
+        add("agent", "Assistant", (await response.json()).answer);
+      }
+    } catch {
       add("agent", "Assistant", "The app did not answer. Is it running?");
     } finally {
       button.disabled = false;
