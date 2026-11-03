@@ -29,6 +29,7 @@ def fresh_globals(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         _turn._listeners.clear()
 
     monkeypatch.setenv("EMET_APPLICATION_KEY", KEY)
+    monkeypatch.delenv("EMET_ENDPOINT", raising=False)
     reset()
     yield
     reset()
@@ -202,3 +203,73 @@ def test_an_endpoint_other_than_production_or_localhost_is_refused() -> None:
     with pytest.raises(ValueError, match="localhost"):
         emet_sdk.configure(endpoint="https://example.com")
     assert _configure._processor is None
+
+
+def test_emet_endpoint_points_the_app_at_a_local_emet(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> Reply:
+        seen.append(url)
+        return Reply(202, {}, json.dumps({"accepted": 2, "gaps": {}}).encode())
+
+    monkeypatch.setattr(_transport, "urllib_post", post)
+    monkeypatch.setenv("EMET_ENDPOINT", "http://localhost:8000")
+    emet_sdk.configure()
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert seen == ["http://localhost:8000/api/v1/traces/"]
+
+
+def test_an_explicit_endpoint_wins_over_emet_endpoint(
+    monkeypatch: pytest.MonkeyPatch, posts: list[dict[str, Any]]
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", "http://localhost:8000")
+    emet_sdk.configure(endpoint="https://app.emet.so")
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert posts[0]["url"] == "https://app.emet.so/api/v1/traces/"
+
+
+def test_a_disallowed_emet_endpoint_turns_emet_off(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", "https://user:token@example.com")
+    emet_sdk.configure()
+    emet_sdk.configure()
+    assert _configure._processor is None
+    assert caplog.text.count("Emet is off: EMET_ENDPOINT is not https://app.emet.so or a localhost address") == 1
+    # The value is never logged: a URL can carry credentials
+    assert "token" not in caplog.text
+    assert KEY not in caplog.text
+
+
+def test_a_non_production_endpoint_is_said_at_startup(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, posts: list[dict[str, Any]]
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", "http://localhost:8000")
+    emet_sdk.configure()
+    assert "Emet sends turns to http://localhost:8000, not production (set by EMET_ENDPOINT)" in caplog.text
+
+
+def test_production_needs_no_startup_line(caplog: pytest.LogCaptureFixture, posts: list[dict[str, Any]]) -> None:
+    emet_sdk.configure()
+    assert "not production" not in caplog.text
+
+
+@pytest.mark.parametrize("blank", ["", "  "])
+def test_a_blank_emet_endpoint_means_production(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, posts: list[dict[str, Any]], blank: str
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", blank)
+    emet_sdk.configure()
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert posts[0]["url"] == "https://app.emet.so/api/v1/traces/"
+    assert "not production" not in caplog.text
+
+
+def test_an_explicit_local_endpoint_is_said_at_startup(
+    caplog: pytest.LogCaptureFixture, posts: list[dict[str, Any]]
+) -> None:
+    emet_sdk.configure(endpoint="http://localhost:8000")
+    assert "not production (set by the endpoint argument). Remove it to send to production." in caplog.text

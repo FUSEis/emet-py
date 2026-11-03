@@ -2,25 +2,35 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+import warnings
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-from emet_cli._project import DELIVERY_FILE, ENV_FILE, KEY_FILE, has_env_value, python_files
-from emet_sdk._configure import KEY_VARIABLE
+from emet_cli._project import DELIVERY_FILE, ENV_FILE, KEY_FILE, env_value, has_env_value, python_files
+from emet_sdk._configure import ENDPOINT_VARIABLE, KEY_VARIABLE
 from emet_sdk._delivery import GAP_KEYS, SCHEMA_VERSION, captured
+from emet_sdk._transport import DEFAULT_ENDPOINT, check_endpoint, resolve_endpoint
 
 SDK_DEPENDENCY = re.compile(r"""(?m)^[^#\n]*["']?emet[-_]sdk\b""")
-CONFIGURE_CALL = re.compile(r"\bemet_sdk\.configure\(|\bfrom emet_sdk import[^\n]*\bconfigure\b")
-TURN_CALL = re.compile(r"\bemet_sdk\.turn\(|\bfrom emet_sdk import[^\n]*\bturn\b")
 DELIVERY_CALL = re.compile(r"\bwrite_delivery_file\(")
+# The first emet-sdk release that reads EMET_ENDPOINT
+ENDPOINT_SDK = (0, 1, 2)
+SDK_PIN = re.compile(r"""(?mi)^[^#\n]*?(?:^|["'\s])emet[-_]sdk\s*==\s*([0-9][0-9.]*)""")
+# Only for files Python cannot parse here
+CONFIGURE_TEXT = re.compile(r"\bemet_sdk\.configure\(|\bfrom emet_sdk import[^\n]*\bconfigure\b")
+TURN_TEXT = re.compile(r"\bemet_sdk\.turn\(|\bfrom emet_sdk import[^\n]*\bturn\b")
+SDK_LOCKED = re.compile(r'(?m)^name = "emet-sdk"\nversion = "([0-9][0-9.]*)"')
 DEPENDENCY_FILES = ("pyproject.toml", "requirements.txt", "requirements.in", "setup.py", "setup.cfg")
 
 INSTRUMENT = "Call Agent.instrument_all() at startup so Pydantic AI emits the spans Emet reads."
+# Only the developer types the key, so every login fix is for them to run
+ASK = "In your own terminal, run"
 REPORT_IT = "Report it with this result at https://github.com/FUSEis/emet-py/issues."
-RELOGIN = "Run `uvx emet-cli login` again with a current key."
 RESTART = (
     f"Restart your app from this folder with {ENV_FILE} loaded (for example `uvicorn app:app --env-file .env`), "
     "send one question through the code that calls emet_sdk.turn(), then run this again."
@@ -90,6 +100,11 @@ def _setup(root: Path) -> dict[str, Any]:
             _f(False, f"No {KEY_VARIABLE} in {ENV_FILE}.", "Run `uvx emet-cli login` yourself, in this folder.")
         )
 
+    scans = {path: _scan(_read(path)) for path in python_files(root)}
+    in_code = next((scan.endpoint for path, scan in scans.items() if scan.endpoint and not _is_test(root, path)), None)
+    sends_to, endpoint_findings = _endpoint_findings(root, key if key_saved else None, in_code)
+    findings.extend(endpoint_findings)
+
     depends = any(SDK_DEPENDENCY.search(_read(root / name)) for name in DEPENDENCY_FILES)
     findings.append(
         _f(True, "The app depends on emet-sdk.")
@@ -101,10 +116,9 @@ def _setup(root: Path) -> dict[str, Any]:
         )
     )
 
-    sources = {path: _read(path) for path in python_files(root)}
-    configure = sorted(_rel(root, p) for p, text in sources.items() if CONFIGURE_CALL.search(text))
-    turns = sorted(_rel(root, p) for p, text in sources.items() if TURN_CALL.search(text))
-    deliveries = sorted(_rel(root, p) for p, text in sources.items() if DELIVERY_CALL.search(text))
+    configure = sorted(_rel(root, p) for p, scan in scans.items() if scan.configures)
+    turns = sorted(_rel(root, p) for p, scan in scans.items() if scan.turns)
+    deliveries = sorted(_rel(root, p) for p in scans if DELIVERY_CALL.search(_read(p)))
     findings.append(
         _f(True, f"emet_sdk.configure() is called in {', '.join(configure)}.")
         if configure
@@ -128,6 +142,7 @@ def _setup(root: Path) -> dict[str, Any]:
         "key_saved": key_saved,
         "key_prefix": (key or {}).get("prefix", ""),
         "key_verified": bool((key or {}).get("verified")),
+        "sends_to": sends_to or "",
         "depends_on_sdk": depends,
         "configure_in": configure,
         "turn_in": turns,
@@ -153,12 +168,13 @@ def _last(root: Path, now: datetime) -> dict[str, Any]:
         }
     age = _age(result.get("written_at"), now)
     trace = result.get("trace_id") or "the turn"
-    what, fix = _explain(result, trace)
+    key = _read_json(root / KEY_FILE) or {}
+    what, fix = _explain(result, trace, _origin(key.get("endpoint")) or "")
     when = f" ({_ago(age)})" if age is not None else ""
     return {**base, "captured": captured(result), "age_seconds": age, "what": what + when, "fix": fix}
 
 
-def _explain(result: dict[str, Any], trace: str) -> tuple[str, str]:
+def _explain(result: dict[str, Any], trace: str, endpoint: str = "") -> tuple[str, str]:
     status, reason, code = result.get("status"), result.get("reason", ""), result.get("code", "")
     if status == "skipped":
         what, fix = SKIPPED.get(reason, (f"The SDK skipped the turn ({reason}).", REPORT_IT))
@@ -166,11 +182,12 @@ def _explain(result: dict[str, Any], trace: str) -> tuple[str, str]:
     if status == "stopped":
         if reason == "http_4xx":
             if code in REFUSED_KEY:
-                return "Emet refused the key.", RELOGIN
+                return "Emet refused the key.", _relogin(endpoint)
             if code == "permission_denied":
                 return (
                     "Emet refused the turn for this key.",
-                    "If the key is pinned to an environment, set deployment.environment.name to match it. " + RELOGIN,
+                    "If the key is pinned to an environment, set deployment.environment.name to match it. "
+                    + _relogin(endpoint),
                 )
             return f"Emet refused the turn as invalid ({code or 'no code'}).", REPORT_IT
         what, fix = STOPPED.get(reason, (f"Sending stopped ({reason}).", REPORT_IT))
@@ -209,13 +226,187 @@ def _explain(result: dict[str, Any], trace: str) -> tuple[str, str]:
     )
 
 
+def _endpoint_findings(
+    root: Path, key: dict[str, Any] | None, in_code: str | None
+) -> tuple[str | None, list[dict[str, Any]]]:
+    """Says where the app sends its turns, with the SDK's own rules, and whether that matches the key."""
+    findings: list[dict[str, Any]] = []
+    checked_with = _origin((key or {}).get("endpoint"))
+    if checked_with is None:
+        findings.append(
+            _f(False, f"{KEY_FILE} names an Emet the SDK would refuse.", f"{ASK} `uvx emet-cli login` again.")
+        )
+    if in_code == UNREADABLE:
+        findings.append(
+            _f(
+                True,
+                "emet_sdk.configure() is given an endpoint check cannot read, so it cannot tell where turns go.",
+                "Make sure it is the Emet the key came from, or remove endpoint= so the app follows the key.",
+            )
+        )
+        return None, findings
+    configured = env_value(root / ENV_FILE, ENDPOINT_VARIABLE)
+    try:
+        sends_to, source = resolve_endpoint(in_code, configured)
+    except ValueError:
+        if in_code is not None:
+            where, effect = "emet_sdk.configure(endpoint=...)", "the app will fail to start"
+        else:
+            where, effect = f"{ENDPOINT_VARIABLE} in {ENV_FILE}", "Emet will be off"
+        what = f"{where} is not https://app.emet.so or a localhost address, so {effect}."
+        findings.append(_f(False, what, "Remove it, or set it to your local Emet, such as http://localhost:8000."))
+        return None, findings
+    if source == ENDPOINT_VARIABLE and sends_to != DEFAULT_ENDPOINT and (old := _old_sdk(root)):
+        # Upgrading is the fix: logging in again would change nothing for this SDK
+        findings.append(old)
+        return DEFAULT_ENDPOINT, findings
+    if checked_with and checked_with != sends_to:
+        if in_code is not None:
+            login = _login_command(checked_with)
+            fix = (
+                f"Remove endpoint= from emet_sdk.configure(), then {ASK.lower()} `{login}` so the app follows the key."
+            )
+        else:
+            again, other = _login_command(checked_with), _login_command(sends_to)
+            fix = f"{ASK} `{again}` again, or get a key from {sends_to} and run `{other}`."
+        findings.append(_f(False, f"The key is from {checked_with}, but the app sends its turns to {sends_to}.", fix))
+    else:
+        findings.append(_f(True, f"The app sends its turns to {sends_to}."))
+    return sends_to, findings
+
+
+def _old_sdk(root: Path) -> dict[str, Any] | None:
+    """Flags an emet-sdk too old to read EMET_ENDPOINT; such an app sends to production."""
+    found = _sdk_version(root)
+    if found is None:
+        return None
+    version, where = found
+    if version >= ENDPOINT_SDK:
+        return None
+    shown, needed = ".".join(map(str, version)), ".".join(map(str, ENDPOINT_SDK))
+    fix = (
+        f"Change the emet-sdk pin in {where} to {needed} or later, then install it."
+        if where.startswith("requirements")
+        else f"Upgrade to emet-sdk {needed} or later: run `uvx emet-cli init`."
+    )
+    return _f(False, f"The app uses emet-sdk {shown}, which ignores {ENDPOINT_VARIABLE} and sends to production.", fix)
+
+
+@dataclass(frozen=True)
+class _Scan:
+    """What one source file does with emet_sdk, read with Python's own parser."""
+
+    configures: bool = False
+    turns: bool = False
+    # The literal endpoint passed to emet_sdk.configure(), UNREADABLE when endpoint= is not a plain string
+    endpoint: str | None = None
+
+
+UNREADABLE = "<set in code>"
+
+
+def _scan(text: str) -> _Scan:
+    """Finds calls to emet_sdk.configure() and emet_sdk.turn(), under any import alias, ignoring comments."""
+    if "emet_sdk" not in text:
+        return _Scan()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text.removeprefix("\ufeff"))
+    except (SyntaxError, ValueError):
+        # Newer syntax than this Python reads: say what the text shows, and do not guess an endpoint
+        configures = bool(CONFIGURE_TEXT.search(text))
+        return _Scan(
+            configures, bool(TURN_TEXT.search(text)), UNREADABLE if configures and "endpoint=" in text else None
+        )
+    modules = {"emet_sdk"}
+    names: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules |= {a.asname or a.name for a in node.names if a.name == "emet_sdk"}
+        elif isinstance(node, ast.ImportFrom) and node.module == "emet_sdk":
+            names |= {a.asname or a.name: a.name for a in node.names if a.name in ("configure", "turn")}
+    configures = turns = False
+    endpoint: str | None = None
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in modules:
+            called = func.attr
+        elif isinstance(func, ast.Name) and func.id in names:
+            called = names[func.id]
+        else:
+            continue
+        turns = turns or called == "turn"
+        if called == "configure":
+            configures = True
+            for keyword in node.keywords:
+                if keyword.arg == "endpoint" and endpoint is None:
+                    value = keyword.value
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str) and value.value.strip():
+                        endpoint = value.value
+                    else:
+                        endpoint = UNREADABLE
+    return _Scan(configures, turns, endpoint)
+
+
+def _sdk_version(root: Path) -> tuple[tuple[int, ...], str] | None:
+    """Returns the emet-sdk version the app locks or pins, and the file that says it."""
+    for name, pattern in (("uv.lock", SDK_LOCKED), ("poetry.lock", SDK_LOCKED), ("pyproject.toml", SDK_PIN)):
+        if found := pattern.search(_read(root / name)):
+            return _version(found.group(1)), name
+    for path in sorted(root.glob("requirements*.txt")):
+        if found := SDK_PIN.search(_read(path)):
+            return _version(found.group(1)), path.name
+    return None
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split(".") if part.isdigit())
+
+
+def _origin(value: Any) -> str | None:
+    """Returns a recorded endpoint as an origin, "" when none is recorded, or None when the SDK would refuse it."""
+    if not isinstance(value, str) or not value:
+        return ""
+    try:
+        return check_endpoint(value)
+    except ValueError:
+        return None
+
+
+def _login_command(endpoint: str) -> str:
+    return "uvx emet-cli login" if endpoint == DEFAULT_ENDPOINT else f"uvx emet-cli login --endpoint '{endpoint}'"
+
+
+def _relogin(endpoint: str) -> str:
+    """The fix for a refused key; a local key must be checked against the Emet that issued it."""
+    if endpoint and endpoint != DEFAULT_ENDPOINT:
+        login = _login_command(endpoint)
+        return f"{ASK} `{login}` again with a current key from that Emet: a key works only on the Emet that issued it."
+    return f"{ASK} `{_login_command(DEFAULT_ENDPOINT)}` again with a current key."
+
+
+def _is_test(root: Path, path: Path) -> bool:
+    relative = path.relative_to(root)
+    name = relative.name
+    tests = ("tests", "test")
+    return (
+        name.startswith("test_")
+        or name.endswith("_test.py")
+        or name == "conftest.py"
+        or any(p in tests for p in relative.parts)
+    )
+
+
 def _f(ok: bool, what: str, fix: str = "") -> dict[str, Any]:
     return {"ok": ok, "what": what, "fix": fix}
 
 
 def _read(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return ""
 

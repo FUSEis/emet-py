@@ -16,7 +16,7 @@ import pytest
 
 from emet_sdk import _transport
 from emet_sdk._delivery import new_result
-from emet_sdk._transport import Reply, Sender, check_endpoint, split, urllib_post
+from emet_sdk._transport import Reply, Sender, check_endpoint, resolve_endpoint, split, urllib_post
 from emet_sdk._version import VERSION
 
 KEY = "emet_test_key_not_real"
@@ -336,3 +336,25 @@ def test_the_repeated_header_counts_against_each_batch(monkeypatch: pytest.Monke
     # Counting only spans would have fit more than two per batch
     assert [len(b["spans"]) for b in batches] == [2, 2, 1]
     assert all(len(json.dumps(b, ensure_ascii=False, separators=(",", ":")).encode()) <= limit for b in batches)
+
+
+@pytest.mark.parametrize(
+    ("explicit", "configured", "expected"),
+    [
+        (None, None, ("https://app.emet.so", "the default")),
+        (None, "  ", ("https://app.emet.so", "the default")),
+        (None, "http://localhost:8000/", ("http://localhost:8000", "EMET_ENDPOINT")),
+        ("https://app.emet.so", "http://localhost:8000", ("https://app.emet.so", "the endpoint argument")),
+    ],
+)
+def test_resolve_endpoint_picks_argument_then_variable_then_production(
+    explicit: str | None, configured: str | None, expected: tuple[str, str]
+) -> None:
+    assert resolve_endpoint(explicit, configured) == expected
+
+
+def test_resolve_endpoint_refuses_what_check_endpoint_refuses() -> None:
+    with pytest.raises(ValueError):
+        resolve_endpoint(None, "https://staging.emet.so")
+    with pytest.raises(ValueError):
+        resolve_endpoint("", None)

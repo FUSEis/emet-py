@@ -18,6 +18,8 @@ from emet_sdk._delivery import GAP_KEYS, DeliveryResult, new_result
 from emet_sdk._version import VERSION
 
 DEFAULT_ENDPOINT = "https://app.emet.so"
+# Set by `emet-cli login --endpoint` for an Emet on this machine
+ENDPOINT_VARIABLE = "EMET_ENDPOINT"
 TRACES_PATH = "/api/v1/traces/"
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 BATCH_MAX_SPANS = 200
@@ -55,6 +57,16 @@ def check_endpoint(url: str) -> str:
     if parts.scheme in ("http", "https") and parts.hostname in LOCAL_HOSTS:
         return origin
     raise ValueError(f"Emet's endpoint must be {DEFAULT_ENDPOINT} or a localhost address, not {url!r}")
+
+
+def resolve_endpoint(explicit: str | None, configured: str | None) -> tuple[str, str]:
+    """Returns the origin turns go to and what chose it: the explicit argument, then the configured value, then
+    production. Raises ValueError when the chosen value is not production or a localhost address."""
+    if explicit is not None:
+        return check_endpoint(explicit), "the endpoint argument"
+    if configured and configured.strip():
+        return check_endpoint(configured), ENDPOINT_VARIABLE
+    return DEFAULT_ENDPOINT, "the default"
 
 
 def split(envelope: dict[str, Any]) -> list[dict[str, Any]]:

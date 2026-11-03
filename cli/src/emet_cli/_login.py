@@ -18,12 +18,13 @@ from emet_cli._project import (
     KEY_FILE,
     ensure_ignored,
     is_python_project,
+    remove_env_line,
     set_env_line,
     tracked,
     write_private,
 )
-from emet_sdk._configure import KEY_VARIABLE
-from emet_sdk._transport import TRACES_PATH, Post, check_endpoint, urllib_post
+from emet_sdk._configure import ENDPOINT_VARIABLE, KEY_VARIABLE
+from emet_sdk._transport import DEFAULT_ENDPOINT, TRACES_PATH, Post, check_endpoint, urllib_post
 from emet_sdk._version import VERSION as SDK_VERSION
 
 CHECK_TIMEOUT = 10.0
@@ -84,6 +85,10 @@ def login(root: Path, endpoint: str, io: Io | None = None) -> int:
             return 1
 
     set_env_line(root / ENV_FILE, KEY_VARIABLE, key)
+    # A key works only on the Emet that issued it, so the app must send to the same one
+    removed = origin == DEFAULT_ENDPOINT and remove_env_line(root / ENV_FILE, ENDPOINT_VARIABLE)
+    if origin != DEFAULT_ENDPOINT:
+        set_env_line(root / ENV_FILE, ENDPOINT_VARIABLE, origin)
     (root / EMET_DIR).mkdir(mode=0o700, exist_ok=True)
     record = {
         "prefix": prefix,
@@ -99,6 +104,10 @@ def login(root: Path, endpoint: str, io: Io | None = None) -> int:
         ensure_ignored(root / ".dockerignore", ignored)
 
     io.out(f"Saved {KEY_VARIABLE} to {ENV_FILE} (key {prefix}...).")
+    if origin != DEFAULT_ENDPOINT:
+        io.out(f"Saved {ENDPOINT_VARIABLE}={origin} too, so the app sends its turns to this Emet.")
+    if removed:
+        io.out(f"Removed {ENDPOINT_VARIABLE} from {ENV_FILE}, so the app sends its turns to production.")
     if added:
         io.out(f"Added {', '.join(added)} to .gitignore.")
     io.out(f"Your app's delivery results will go to {DELIVERY_FILE}. Your coding agent can continue now.")

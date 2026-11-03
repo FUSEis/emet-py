@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from emet_cli._login import Io, login
+from emet_cli._project import env_value, remove_env_line
 from emet_sdk._transport import Reply
 
 KEY = "AbCd1234.not-a-real-secret-for-tests"
@@ -144,3 +145,47 @@ def test_an_existing_dockerignore_gets_the_entries_too(app: Path) -> None:
     assert login(app, "https://app.emet.so", fake.io()) == 0
     assert (app / ".gitignore").read_text() == ".env\n.emet/\n"
     assert (app / ".dockerignore").read_text() == "node_modules\n.env\n.emet/\n"
+
+
+def test_a_local_login_points_the_app_at_that_emet(app: Path) -> None:
+    fake = Fake()
+    assert login(app, "http://localhost:8000", fake.io()) == 0
+    assert (app / ".env").read_text() == f"EMET_APPLICATION_KEY={KEY}\nEMET_ENDPOINT=http://localhost:8000\n"
+    assert "so the app sends its turns to this Emet" in fake.text
+    # Logging in to production again drops the local endpoint, and says so
+    again = Fake()
+    assert login(app, "https://app.emet.so", again.io()) == 0
+    assert (app / ".env").read_text() == f"EMET_APPLICATION_KEY={KEY}\n"
+    assert "Removed EMET_ENDPOINT from .env" in again.text
+
+
+def test_a_rejected_local_key_leaves_env_untouched(app: Path) -> None:
+    (app / ".env").write_text("DEBUG=1\n")
+    assert login(app, "http://localhost:8000", Fake(status=403).io()) == 1
+    assert (app / ".env").read_text() == "DEBUG=1\n"
+
+
+@pytest.mark.parametrize(
+    ("line", "value"),
+    [
+        ("EMET_ENDPOINT=http://localhost:8000", "http://localhost:8000"),
+        ('EMET_ENDPOINT="http://localhost:8000"', "http://localhost:8000"),
+        ("export EMET_ENDPOINT=http://localhost:8000", "http://localhost:8000"),
+        ("EMET_ENDPOINT=http://localhost:8000  # local", "http://localhost:8000"),
+        ("EMET_ENDPOINT=http://a:1\nEMET_ENDPOINT=http://localhost:8000", "http://localhost:8000"),
+        ("EMET_ENDPOINT=", ""),
+        ("EMET_ENDPOINT=http://localhost:8000\t# local", "http://localhost:8000"),
+        ('EMET_ENDPOINT="http://localhost:8000"  # local', "http://localhost:8000"),
+        ('EMET_ENDPOINT=""', ""),
+    ],
+)
+def test_env_values_are_read_like_python_dotenv(tmp_path: Path, line: str, value: str) -> None:
+    (tmp_path / ".env").write_text(line + "\n")
+    assert env_value(tmp_path / ".env", "EMET_ENDPOINT") == value
+
+
+def test_removing_the_only_line_leaves_an_empty_file(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text("EMET_ENDPOINT=http://localhost:8000\n")
+    assert remove_env_line(tmp_path / ".env", "EMET_ENDPOINT") is True
+    assert (tmp_path / ".env").read_text() == ""
+    assert remove_env_line(tmp_path / "missing.env", "EMET_ENDPOINT") is False
