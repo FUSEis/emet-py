@@ -274,7 +274,13 @@ def test_a_refused_key_mentions_local_emet_only_when_it_is_in_use(app: Path) -> 
         ('import emet_sdk as e\ne.configure(endpoint="http://localhost:8000")\n', "http://localhost:8000"),
         ('from emet_sdk import configure as c\nc(endpoint="http://localhost:9000")\n', "http://localhost:9000"),
         ("import emet_sdk\nemet_sdk.configure(endpoint=settings.EMET_URL)\n", UNREADABLE),
-        ('import emet_sdk\nemet_sdk.configure(endpoint="")\n', UNREADABLE),
+        ('import emet_sdk\nemet_sdk.configure(endpoint="")\n', ""),
+        ("import emet_sdk\nemet_sdk.configure(endpoint=None)\n", None),
+        ("import emet_sdk\nemet_sdk.configure(**options)\n", UNREADABLE),
+        (
+            'import emet_sdk\nemet_sdk.configure(endpoint="http://localhost:8000")\nemet_sdk.configure(endpoint="http://localhost:9000")\n',
+            UNREADABLE,
+        ),
         ('\ufeffimport emet_sdk\nemet_sdk.configure(endpoint="http://localhost:8000")\n', "http://localhost:8000"),
     ],
 )
@@ -320,9 +326,7 @@ def test_a_key_file_with_a_refused_endpoint_is_never_echoed(app: Path) -> None:
     (app / ".emet" / "key.json").write_text(json.dumps({**key, "endpoint": planted}))
     code, report = check(app, last=True, now=NOW)
     assert code == 1
-    assert "evil.example" not in json.dumps(
-        {k: v for k, v in report.items() if k != "setup"} | {"findings": report["setup"]["findings"]}
-    )
+    assert "evil.example" not in json.dumps(report)
     assert any("names an Emet the SDK would refuse" in f["what"] for f in report["setup"]["findings"])
 
 
@@ -343,7 +347,7 @@ def test_an_old_sdk_pinned_anywhere_is_flagged_and_sends_to_production(
     (app / name).write_text(content)
     _, report = check(app, last=False)
     old = next(f for f in report["setup"]["findings"] if "ignores EMET_ENDPOINT" in f["what"])
-    assert fix in old["fix"]
+    assert (old["ok"], fix in old["fix"], check(app, last=False)[0]) == (False, True, 1)
     # Such an app really sends to production; upgrading is the one fix, so no login advice repeats
     assert report["setup"]["sends_to"] == "https://app.emet.so"
     assert not any("sends its turns" in f["what"] for f in report["setup"]["findings"])
@@ -404,3 +408,44 @@ def test_an_ipv6_local_endpoint_is_quoted_for_the_shell(app: Path) -> None:
     (app / ".emet" / "key.json").write_text(json.dumps({**key, "endpoint": "http://[::1]:8000"}))
     _, report = check(app, last=False)
     assert "uvx emet-cli login --endpoint 'http://[::1]:8000'" in _endpoint_finding(report)["fix"]
+
+
+def test_an_empty_code_endpoint_says_the_app_will_not_start(app: Path) -> None:
+    (app / "app" / "main.py").write_text('import emet_sdk\nemet_sdk.configure(endpoint="")\n')
+    _, report = check(app, last=False)
+    assert any("the app will fail to start" in f["what"] for f in report["setup"]["findings"])
+
+
+def test_configure_only_in_tests_does_not_count_as_wired(app: Path) -> None:
+    (app / "app" / "main.py").write_text("print('no emet here')\n")
+    (app / "tests").mkdir()
+    (app / "tests" / "test_app.py").write_text(
+        "import emet_sdk\nemet_sdk.configure()\nwith emet_sdk.turn(t, c):\n    pass\n"
+    )
+    _, report = check(app, last=False)
+    assert (report["setup"]["configure_in"], report["setup"]["turn_in"]) == ([], [])
+
+
+def test_an_old_sdk_ignores_even_a_refused_emet_endpoint(app: Path) -> None:
+    (app / ".env").write_text("EMET_APPLICATION_KEY=AbCd1234.secret\nEMET_ENDPOINT=https://staging.emet.so\n")
+    (app / "requirements.txt").write_text("emet-sdk==0.1.1\n")
+    _, report = check(app, last=False)
+    whats = [f["what"] for f in report["setup"]["findings"]]
+    assert any("ignores EMET_ENDPOINT" in w for w in whats)
+    assert not any("Emet will be off" in w for w in whats)
+
+
+def test_the_ok_line_says_where_the_endpoint_came_from(app: Path) -> None:
+    key = json.loads((app / ".emet" / "key.json").read_text())
+    (app / ".emet" / "key.json").write_text(json.dumps({**key, "endpoint": "http://localhost:8000"}))
+    (app / ".env").write_text("EMET_APPLICATION_KEY=AbCd1234.secret\nEMET_ENDPOINT=http://localhost:8000\n")
+    _, report = check(app, last=False)
+    assert (
+        _endpoint_finding(report)["what"] == "The app sends its turns to http://localhost:8000 (EMET_ENDPOINT in .env)."
+    )
+
+
+def test_an_unparseable_file_with_an_aliased_import_still_counts(app: Path) -> None:
+    (app / "app" / "main.py").write_text("import emet_sdk as e\ne.configure()\nwith e.turn(t, c):\n    x = (\n")
+    _, report = check(app, last=False)
+    assert (report["setup"]["configure_in"], report["setup"]["turn_in"]) == (["app/main.py"], ["app/main.py"])

@@ -18,8 +18,7 @@ from emet_cli._project import (
     KEY_FILE,
     ensure_ignored,
     is_python_project,
-    remove_env_line,
-    set_env_line,
+    set_env_lines,
     tracked,
     write_private,
 )
@@ -84,11 +83,9 @@ def login(root: Path, endpoint: str, io: Io | None = None) -> int:
             io.out("Nothing was saved.")
             return 1
 
-    set_env_line(root / ENV_FILE, KEY_VARIABLE, key)
-    # A key works only on the Emet that issued it, so the app must send to the same one
-    removed = origin == DEFAULT_ENDPOINT and remove_env_line(root / ENV_FILE, ENDPOINT_VARIABLE)
-    if origin != DEFAULT_ENDPOINT:
-        set_env_line(root / ENV_FILE, ENDPOINT_VARIABLE, origin)
+    # A key works only on the Emet that issued it: write both in one step so they cannot disagree
+    local = origin != DEFAULT_ENDPOINT
+    removed = set_env_lines(root / ENV_FILE, {KEY_VARIABLE: key, ENDPOINT_VARIABLE: origin if local else None})
     (root / EMET_DIR).mkdir(mode=0o700, exist_ok=True)
     record = {
         "prefix": prefix,
@@ -104,7 +101,7 @@ def login(root: Path, endpoint: str, io: Io | None = None) -> int:
         ensure_ignored(root / ".dockerignore", ignored)
 
     io.out(f"Saved {KEY_VARIABLE} to {ENV_FILE} (key {prefix}...).")
-    if origin != DEFAULT_ENDPOINT:
+    if local:
         io.out(f"Saved {ENDPOINT_VARIABLE}={origin} too, so the app sends its turns to this Emet.")
     if removed:
         io.out(f"Removed {ENDPOINT_VARIABLE} from {ENV_FILE}, so the app sends its turns to production.")

@@ -101,7 +101,9 @@ def _setup(root: Path) -> dict[str, Any]:
         )
 
     scans = {path: _scan(_read(path)) for path in python_files(root)}
-    in_code = next((scan.endpoint for path, scan in scans.items() if scan.endpoint and not _is_test(root, path)), None)
+    app_scans = {path: scan for path, scan in scans.items() if not _is_test(root, path)}
+    found = {scan.endpoint for scan in app_scans.values() if scan.endpoint is not None}
+    in_code = None if not found else (found.pop() if len(found) == 1 else UNREADABLE)
     sends_to, endpoint_findings = _endpoint_findings(root, key if key_saved else None, in_code)
     findings.extend(endpoint_findings)
 
@@ -116,8 +118,8 @@ def _setup(root: Path) -> dict[str, Any]:
         )
     )
 
-    configure = sorted(_rel(root, p) for p, scan in scans.items() if scan.configures)
-    turns = sorted(_rel(root, p) for p, scan in scans.items() if scan.turns)
+    configure = sorted(_rel(root, p) for p, scan in app_scans.items() if scan.configures)
+    turns = sorted(_rel(root, p) for p, scan in app_scans.items() if scan.turns)
     deliveries = sorted(_rel(root, p) for p in scans if DELIVERY_CALL.search(_read(p)))
     findings.append(
         _f(True, f"emet_sdk.configure() is called in {', '.join(configure)}.")
@@ -246,6 +248,10 @@ def _endpoint_findings(
         )
         return None, findings
     configured = env_value(root / ENV_FILE, ENDPOINT_VARIABLE)
+    if in_code is None and _origin(configured) != DEFAULT_ENDPOINT and configured.strip() and (old := _old_sdk(root)):
+        # This SDK ignores EMET_ENDPOINT, valid or not, and sends to production; upgrading is the fix
+        findings.append(old)
+        return DEFAULT_ENDPOINT, findings
     try:
         sends_to, source = resolve_endpoint(in_code, configured)
     except ValueError:
@@ -256,10 +262,6 @@ def _endpoint_findings(
         what = f"{where} is not https://app.emet.so or a localhost address, so {effect}."
         findings.append(_f(False, what, "Remove it, or set it to your local Emet, such as http://localhost:8000."))
         return None, findings
-    if source == ENDPOINT_VARIABLE and sends_to != DEFAULT_ENDPOINT and (old := _old_sdk(root)):
-        # Upgrading is the fix: logging in again would change nothing for this SDK
-        findings.append(old)
-        return DEFAULT_ENDPOINT, findings
     if checked_with and checked_with != sends_to:
         if in_code is not None:
             login = _login_command(checked_with)
@@ -271,7 +273,11 @@ def _endpoint_findings(
             fix = f"{ASK} `{again}` again, or get a key from {sends_to} and run `{other}`."
         findings.append(_f(False, f"The key is from {checked_with}, but the app sends its turns to {sends_to}.", fix))
     else:
-        findings.append(_f(True, f"The app sends its turns to {sends_to}."))
+        origin = {
+            ENDPOINT_VARIABLE: f" ({ENDPOINT_VARIABLE} in {ENV_FILE})",
+            "the endpoint argument": " (set in emet_sdk.configure())",
+        }
+        findings.append(_f(True, f"The app sends its turns to {sends_to}{origin.get(source, '')}."))
     return sends_to, findings
 
 
@@ -315,10 +321,10 @@ def _scan(text: str) -> _Scan:
             tree = ast.parse(text.removeprefix("\ufeff"))
     except (SyntaxError, ValueError):
         # Newer syntax than this Python reads: say what the text shows, and do not guess an endpoint
-        configures = bool(CONFIGURE_TEXT.search(text))
-        return _Scan(
-            configures, bool(TURN_TEXT.search(text)), UNREADABLE if configures and "endpoint=" in text else None
-        )
+        aliased = bool(re.search(r"\bimport emet_sdk\b|\bfrom emet_sdk import\b", text))
+        configures = bool(CONFIGURE_TEXT.search(text) or (aliased and re.search(r"\bconfigure\(", text)))
+        turns = bool(TURN_TEXT.search(text) or (aliased and re.search(r"\bturn\(", text)))
+        return _Scan(configures, turns, UNREADABLE if configures and "endpoint" in text else None)
     modules = {"emet_sdk"}
     names: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -327,10 +333,9 @@ def _scan(text: str) -> _Scan:
         elif isinstance(node, ast.ImportFrom) and node.module == "emet_sdk":
             names |= {a.asname or a.name: a.name for a in node.names if a.name in ("configure", "turn")}
     configures = turns = False
-    endpoint: str | None = None
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    endpoints: list[str] = []
+    calls = sorted((n for n in ast.walk(tree) if isinstance(n, ast.Call)), key=lambda n: (n.lineno, n.col_offset))
+    for node in calls:
         func = node.func
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in modules:
             called = func.attr
@@ -342,12 +347,17 @@ def _scan(text: str) -> _Scan:
         if called == "configure":
             configures = True
             for keyword in node.keywords:
-                if keyword.arg == "endpoint" and endpoint is None:
-                    value = keyword.value
-                    if isinstance(value, ast.Constant) and isinstance(value.value, str) and value.value.strip():
-                        endpoint = value.value
-                    else:
-                        endpoint = UNREADABLE
+                value = keyword.value
+                if keyword.arg is None:
+                    endpoints.append(UNREADABLE)  # **kwargs may carry an endpoint
+                elif keyword.arg != "endpoint" or (isinstance(value, ast.Constant) and value.value is None):
+                    continue
+                elif isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    endpoints.append(value.value)
+                else:
+                    endpoints.append(UNREADABLE)
+    # The SDK keeps the first configure(); with several, check cannot know which runs first
+    endpoint = endpoints[0] if len(set(endpoints)) == 1 else (UNREADABLE if endpoints else None)
     return _Scan(configures, turns, endpoint)
 
 

@@ -110,22 +110,22 @@ def configure(
     endpoint is for testing against Emet on this machine; without it, EMET_ENDPOINT is used, then production.
     """
     global _processor, _worker, _said_off, _said_bad_endpoint
-    if endpoint is not None:
-        origin, source = resolve_endpoint(endpoint, None)
-    else:
-        try:
-            origin, source = resolve_endpoint(None, os.environ.get(ENDPOINT_VARIABLE))
-        except ValueError:
-            # The value is not logged: a URL can carry credentials
-            if not _said_bad_endpoint:
-                _said_bad_endpoint = True
-                logger.error(
-                    "Emet is off: %s is not https://app.emet.so or a localhost address. "
-                    "Unset it, or set it to your local Emet, such as http://localhost:8000.",
-                    ENDPOINT_VARIABLE,
-                )
-            return
+    # An explicit bad endpoint raises here, before anything is installed
+    origin, source = resolve_endpoint(endpoint, None) if endpoint is not None else (DEFAULT_ENDPOINT, "")
     with _lock:
+        if endpoint is None:
+            try:
+                origin, source = resolve_endpoint(None, os.environ.get(ENDPOINT_VARIABLE))
+            except ValueError:
+                # The value is not logged: a URL can carry credentials
+                if not _said_bad_endpoint:
+                    _said_bad_endpoint = True
+                    logger.error(
+                        "Emet is off: %s is not https://app.emet.so or a localhost address. "
+                        "Unset it, or set it to your local Emet, such as http://localhost:8000.",
+                        ENDPOINT_VARIABLE,
+                    )
+                return
         if _processor is not None:
             return
         key = os.environ.get(KEY_VARIABLE, "").strip()

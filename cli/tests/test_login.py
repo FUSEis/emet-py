@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from emet_cli._login import Io, login
-from emet_cli._project import env_value, remove_env_line
+from emet_cli._project import env_value, set_env_lines
 from emet_sdk._transport import Reply
 
 KEY = "AbCd1234.not-a-real-secret-for-tests"
@@ -186,6 +186,18 @@ def test_env_values_are_read_like_python_dotenv(tmp_path: Path, line: str, value
 
 def test_removing_the_only_line_leaves_an_empty_file(tmp_path: Path) -> None:
     (tmp_path / ".env").write_text("EMET_ENDPOINT=http://localhost:8000\n")
-    assert remove_env_line(tmp_path / ".env", "EMET_ENDPOINT") is True
+    assert set_env_lines(tmp_path / ".env", {"EMET_ENDPOINT": None}) is True
     assert (tmp_path / ".env").read_text() == ""
-    assert remove_env_line(tmp_path / "missing.env", "EMET_ENDPOINT") is False
+    assert set_env_lines(tmp_path / ".env", {"EMET_ENDPOINT": None}) is False
+
+
+def test_key_and_local_endpoint_are_written_in_one_step(app: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    writes: list[str] = []
+
+    def counted(path: Path, values: dict[str, str | None]) -> bool:
+        writes.append(",".join(values))
+        return set_env_lines(path, values)
+
+    monkeypatch.setattr("emet_cli._login.set_env_lines", counted)
+    assert login(app, "http://localhost:8000", Fake().io()) == 0
+    assert writes == ["EMET_APPLICATION_KEY,EMET_ENDPOINT"]

@@ -53,22 +53,18 @@ def write_private(path: Path, text: str) -> None:
 
 def set_env_line(path: Path, name: str, value: str) -> None:
     """Sets NAME=value in a dotenv file, leaving every other line as it was."""
+    set_env_lines(path, {name: value})
+
+
+def set_env_lines(path: Path, values: dict[str, str | None]) -> bool:
+    """Sets each NAME=value, and removes each NAME whose value is None, in one atomic write; returns True when a
+    line was removed. Every other line is left as it was."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    entry = f"{name}={value}"
-    kept = [line for line in lines if not _assigns(line, name)]
-    write_private(path, "\n".join([*kept, entry]) + "\n")
-
-
-def remove_env_line(path: Path, name: str) -> bool:
-    """Removes NAME=... from a dotenv file; returns True when there was one."""
-    if not path.is_file():
-        return False
-    lines = path.read_text(encoding="utf-8").splitlines()
-    kept = [line for line in lines if not _assigns(line, name)]
-    if len(kept) == len(lines):
-        return False
-    write_private(path, "\n".join(kept) + ("\n" if kept else ""))
-    return True
+    kept = [line for line in lines if not any(_assigns(line, name) for name in values)]
+    removed = any(_assigns(line, name) for line in lines for name, value in values.items() if value is None)
+    entries = [f"{name}={value}" for name, value in values.items() if value is not None]
+    write_private(path, "\n".join([*kept, *entries]) + "\n" if kept or entries else "")
+    return removed
 
 
 def env_value(path: Path, name: str) -> str:
