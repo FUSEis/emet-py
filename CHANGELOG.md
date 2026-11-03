@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-03
+
+### Added
+
+- `EMET_ENDPOINT`: when `configure()` gets no endpoint, the SDK sends to this localhost address, then to production. A value outside production and localhost turns Emet off with a log line.
+- `emet-cli login --endpoint http://localhost:8000` saves `EMET_ENDPOINT` next to the key, so an app tested against Emet on your machine sends there with no code change. Logging in to production removes it.
+- `emet-cli check` says where the app sends its turns, and flags a key that came from a different Emet, including an endpoint hard-coded in `configure()`.
+
+### Changed
+
+- The agent setup prompt keeps going on its own and asks the developer only for the key, for starting the app when it cannot, or when the app has no team value. It never passes `endpoint=` to `configure()`.
+- A refused key's fix now says that a key works only on the Emet that issued it.
+
 ## [0.1.1] - 2026-10-30
 
 The first release of `emet-cli`, versioned together with `emet-sdk` from now on.
@@ -38,6 +51,7 @@ The first release.
 - `flush()` waits for finished turns to be sent, and runs for up to 5 seconds at exit.
 - Secrets are redacted from every string, the Emet key included, the system prompt is sent as a SHA-256 hash, inline files and images are replaced by their type, size and digest, and a failed call sends its error message without the stack trace.
 
-[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/FUSEis/emet-py/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/FUSEis/emet-py/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/FUSEis/emet-py/releases/tag/v0.1.0
