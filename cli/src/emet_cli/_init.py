@@ -119,8 +119,8 @@ def init(root: Path, install: bool = True, runner: Runner = run_command) -> tupl
         steps.append("Call Agent.instrument_all() at startup so Pydantic AI emits spans.")
     if not report["turn_in"]:
         steps.append(
-            "Wrap each agent run listed in agent_runs_at in emet_sdk.turn(). Propose the tenant_ref, conversation_id "
-            "and user expressions from the app's own auth and storage, and confirm them with the developer first."
+            "Wrap each agent run listed in agent_runs_at in emet_sdk.turn(). Pick the tenant_ref, conversation_id "
+            "and user expressions from the app's own auth and storage, show them in a short table, and continue."
         )
     steps.append("Run `uvx emet-cli check`, then start the app and send one question.")
     return 0, report
