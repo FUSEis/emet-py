@@ -8,19 +8,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-from emet_cli._project import DELIVERY_FILE, ENV_FILE, KEY_FILE, has_env_value, python_files
-from emet_sdk._configure import KEY_VARIABLE
+from emet_cli._project import DELIVERY_FILE, ENV_FILE, KEY_FILE, env_value, has_env_value, python_files
+from emet_sdk._configure import ENDPOINT_VARIABLE, KEY_VARIABLE
 from emet_sdk._delivery import GAP_KEYS, SCHEMA_VERSION, captured
+from emet_sdk._transport import DEFAULT_ENDPOINT
 
 SDK_DEPENDENCY = re.compile(r"""(?m)^[^#\n]*["']?emet[-_]sdk\b""")
 CONFIGURE_CALL = re.compile(r"\bemet_sdk\.configure\(|\bfrom emet_sdk import[^\n]*\bconfigure\b")
 TURN_CALL = re.compile(r"\bemet_sdk\.turn\(|\bfrom emet_sdk import[^\n]*\bturn\b")
 DELIVERY_CALL = re.compile(r"\bwrite_delivery_file\(")
+CODE_ENDPOINT = re.compile(r"""\bendpoint\s*=\s*["']([^"']+)["']""")
 DEPENDENCY_FILES = ("pyproject.toml", "requirements.txt", "requirements.in", "setup.py", "setup.cfg")
 
 INSTRUMENT = "Call Agent.instrument_all() at startup so Pydantic AI emits the spans Emet reads."
 REPORT_IT = "Report it with this result at https://github.com/FUSEis/emet-py/issues."
-RELOGIN = "Run `uvx emet-cli login` again with a current key."
+RELOGIN = (
+    "Run `uvx emet-cli login` again with a current key, adding `--endpoint http://localhost:8000` "
+    "when the key comes from Emet on your machine: a key works only on the Emet that issued it."
+)
 RESTART = (
     f"Restart your app from this folder with {ENV_FILE} loaded (for example `uvicorn app:app --env-file .env`), "
     "send one question through the code that calls emet_sdk.turn(), then run this again."
@@ -90,6 +95,20 @@ def _setup(root: Path) -> dict[str, Any]:
             _f(False, f"No {KEY_VARIABLE} in {ENV_FILE}.", "Run `uvx emet-cli login` yourself, in this folder.")
         )
 
+    sources = {path: _read(path) for path in python_files(root)}
+    in_code = next((m.group(1) for text in sources.values() if (m := CODE_ENDPOINT.search(text))), "")
+    sends_to = in_code or env_value(root / ENV_FILE, ENDPOINT_VARIABLE) or DEFAULT_ENDPOINT
+    checked_with = (key or {}).get("endpoint", "")
+    if key_saved and checked_with and checked_with.rstrip("/") != sends_to.rstrip("/"):
+        fix = (
+            f"Remove endpoint= from emet_sdk.configure() so the app follows the key, or run login against {sends_to}."
+            if in_code
+            else f"Run `uvx emet-cli login --endpoint {checked_with}` again, or log in with a key from {sends_to}."
+        )
+        findings.append(_f(False, f"The key is from {checked_with}, but the app sends its turns to {sends_to}.", fix))
+    else:
+        findings.append(_f(True, f"The app sends its turns to {sends_to}."))
+
     depends = any(SDK_DEPENDENCY.search(_read(root / name)) for name in DEPENDENCY_FILES)
     findings.append(
         _f(True, "The app depends on emet-sdk.")
@@ -101,7 +120,6 @@ def _setup(root: Path) -> dict[str, Any]:
         )
     )
 
-    sources = {path: _read(path) for path in python_files(root)}
     configure = sorted(_rel(root, p) for p, text in sources.items() if CONFIGURE_CALL.search(text))
     turns = sorted(_rel(root, p) for p, text in sources.items() if TURN_CALL.search(text))
     deliveries = sorted(_rel(root, p) for p, text in sources.items() if DELIVERY_CALL.search(text))
@@ -128,6 +146,7 @@ def _setup(root: Path) -> dict[str, Any]:
         "key_saved": key_saved,
         "key_prefix": (key or {}).get("prefix", ""),
         "key_verified": bool((key or {}).get("verified")),
+        "sends_to": sends_to,
         "depends_on_sdk": depends,
         "configure_in": configure,
         "turn_in": turns,

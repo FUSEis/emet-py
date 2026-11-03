@@ -58,6 +58,28 @@ def set_env_line(path: Path, name: str, value: str) -> None:
     write_private(path, "\n".join([*kept, entry]) + "\n")
 
 
+def remove_env_line(path: Path, name: str) -> bool:
+    """Removes NAME=... from a dotenv file; returns True when there was one."""
+    if not path.is_file():
+        return False
+    lines = path.read_text(encoding="utf-8").splitlines()
+    kept = [line for line in lines if not _assigns(line, name)]
+    if len(kept) == len(lines):
+        return False
+    write_private(path, "\n".join(kept) + ("\n" if kept else ""))
+    return True
+
+
+def env_value(path: Path, name: str) -> str:
+    """Returns the value a dotenv file assigns to name, or an empty string. Only for non-secret settings."""
+    if not path.is_file():
+        return ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _assigns(line, name):
+            return line.split("=", 1)[1].strip().strip("'\"")
+    return ""
+
+
 def has_env_value(path: Path, name: str) -> bool:
     """Returns True when the dotenv file assigns a non-empty value to name."""
     if not path.is_file():

@@ -23,6 +23,8 @@ from emet_sdk._worker import Worker
 logger = logging.getLogger("emet_sdk")
 
 KEY_VARIABLE = "EMET_APPLICATION_KEY"
+# Set by `emet-cli login --endpoint` for an Emet on this machine; production otherwise
+ENDPOINT_VARIABLE = "EMET_ENDPOINT"
 OFF_MESSAGE = f"Emet is off: {KEY_VARIABLE} is not set. Create a key for your Application in Emet and set it."
 EXIT_FLUSH_SECONDS = 5.0
 
@@ -97,7 +99,7 @@ def configure(
     *,
     service_name: str | None = None,
     on_delivery: Callable[[DeliveryResult], None] | None = None,
-    endpoint: str = DEFAULT_ENDPOINT,
+    endpoint: str | None = None,
 ) -> None:
     """Adds Emet to the global TracerProvider, creating an SDK provider when the app has none.
 
@@ -106,10 +108,19 @@ def configure(
     that already exports elsewhere keeps doing so, with the same sampling. Calling it again does nothing.
 
     service_name names the app in Emet. on_delivery receives each turn's delivery result on Emet's own thread.
-    endpoint is for testing against Emet on this machine.
+    endpoint is for testing against Emet on this machine; without it, EMET_ENDPOINT is used, then production.
     """
     global _processor, _worker, _said_off
-    origin = check_endpoint(endpoint)
+    if endpoint is not None:
+        origin = check_endpoint(endpoint)
+    else:
+        try:
+            origin = check_endpoint(os.environ.get(ENDPOINT_VARIABLE, "").strip() or DEFAULT_ENDPOINT)
+        except ValueError as error:
+            logger.error(
+                "Emet is off: %s=%s is not allowed. %s", ENDPOINT_VARIABLE, os.environ[ENDPOINT_VARIABLE], error
+            )
+            return
     with _lock:
         if _processor is not None:
             return

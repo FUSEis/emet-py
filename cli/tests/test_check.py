@@ -151,3 +151,41 @@ def test_the_command_line_prints_json_for_agents(
 def test_the_command_line_reports_a_bad_endpoint(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["login", "--endpoint", "https://example.com"]) == 2
     assert "localhost" in capsys.readouterr().err
+
+
+def _endpoint_finding(report: dict[str, Any]) -> dict[str, Any]:
+    return next(f for f in report["setup"]["findings"] if "sends its turns" in f["what"])
+
+
+def test_check_says_where_the_app_sends(app: Path) -> None:
+    _, report = check(app, last=False)
+    assert report["setup"]["sends_to"] == "https://app.emet.so"
+    assert _endpoint_finding(report)["ok"] is True
+
+
+def test_a_key_from_another_emet_is_flagged(app: Path) -> None:
+    key = json.loads((app / ".emet" / "key.json").read_text())
+    (app / ".emet" / "key.json").write_text(json.dumps({**key, "endpoint": "http://localhost:8000"}))
+    code, report = check(app, last=False)
+    finding = _endpoint_finding(report)
+    assert (code, finding["ok"]) == (1, False)
+    assert "key is from http://localhost:8000, but the app sends its turns to https://app.emet.so" in finding["what"]
+    assert "--endpoint http://localhost:8000" in finding["fix"]
+    # Once login has saved EMET_ENDPOINT, they agree
+    (app / ".env").write_text("EMET_APPLICATION_KEY=AbCd1234.secret\nEMET_ENDPOINT=http://localhost:8000\n")
+    _, report = check(app, last=False)
+    assert _endpoint_finding(report)["ok"] is True
+
+
+def test_an_endpoint_hard_coded_in_configure_is_what_counts(app: Path) -> None:
+    key = json.loads((app / ".emet" / "key.json").read_text())
+    (app / ".emet" / "key.json").write_text(json.dumps({**key, "endpoint": "https://app.emet.so"}))
+    (app / "app" / "main.py").write_text(
+        (app / "app" / "main.py")
+        .read_text()
+        .replace("emet_sdk.configure(", 'emet_sdk.configure(endpoint="http://localhost:8000", ')
+    )
+    _, report = check(app, last=False)
+    finding = _endpoint_finding(report)
+    assert (report["setup"]["sends_to"], finding["ok"]) == ("http://localhost:8000", False)
+    assert "Remove endpoint=" in finding["fix"]

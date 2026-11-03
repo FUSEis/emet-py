@@ -144,3 +144,13 @@ def test_an_existing_dockerignore_gets_the_entries_too(app: Path) -> None:
     assert login(app, "https://app.emet.so", fake.io()) == 0
     assert (app / ".gitignore").read_text() == ".env\n.emet/\n"
     assert (app / ".dockerignore").read_text() == "node_modules\n.env\n.emet/\n"
+
+
+def test_a_local_login_points_the_app_at_that_emet(app: Path) -> None:
+    fake = Fake()
+    assert login(app, "http://localhost:8000", fake.io()) == 0
+    assert (app / ".env").read_text() == f"EMET_APPLICATION_KEY={KEY}\nEMET_ENDPOINT=http://localhost:8000\n"
+    assert "so the app sends its turns to this Emet" in fake.text
+    # Logging in to production again drops the local endpoint
+    assert login(app, "https://app.emet.so", Fake().io()) == 0
+    assert (app / ".env").read_text() == f"EMET_APPLICATION_KEY={KEY}\n"

@@ -202,3 +202,37 @@ def test_an_endpoint_other_than_production_or_localhost_is_refused() -> None:
     with pytest.raises(ValueError, match="localhost"):
         emet_sdk.configure(endpoint="https://example.com")
     assert _configure._processor is None
+
+
+def test_emet_endpoint_points_the_app_at_a_local_emet(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> Reply:
+        seen.append(url)
+        return Reply(202, {}, json.dumps({"accepted": 2, "gaps": {}}).encode())
+
+    monkeypatch.setattr(_transport, "urllib_post", post)
+    monkeypatch.setenv("EMET_ENDPOINT", "http://localhost:8000")
+    emet_sdk.configure()
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert seen == ["http://localhost:8000/api/v1/traces/"]
+
+
+def test_an_explicit_endpoint_wins_over_emet_endpoint(
+    monkeypatch: pytest.MonkeyPatch, posts: list[dict[str, Any]]
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", "http://localhost:8000")
+    emet_sdk.configure(endpoint="https://app.emet.so")
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert posts[0]["url"] == "https://app.emet.so/api/v1/traces/"
+
+
+def test_a_disallowed_emet_endpoint_turns_emet_off(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("EMET_ENDPOINT", "https://example.com")
+    emet_sdk.configure()
+    assert _configure._processor is None
+    assert "Emet is off: EMET_ENDPOINT=https://example.com is not allowed" in caplog.text
