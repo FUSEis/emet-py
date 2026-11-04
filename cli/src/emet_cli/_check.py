@@ -102,8 +102,8 @@ def _setup(root: Path) -> dict[str, Any]:
 
     scans = {path: _scan(_read(path)) for path in python_files(root)}
     app_scans = {path: scan for path, scan in scans.items() if not _is_test(root, path)}
-    found = {scan.endpoint for scan in app_scans.values() if scan.endpoint is not None}
-    in_code = None if not found else (found.pop() if len(found) == 1 else UNREADABLE)
+    found = {scan.endpoint for scan in app_scans.values() if scan.configures}
+    in_code = None if found <= {None} else (found.pop() if len(found) == 1 else UNREADABLE)
     sends_to, endpoint_findings = _endpoint_findings(root, key if key_saved else None, in_code)
     findings.extend(endpoint_findings)
 
@@ -248,6 +248,15 @@ def _endpoint_findings(
         )
         return None, findings
     configured = env_value(root / ENV_FILE, ENDPOINT_VARIABLE)
+    if in_code is None and "${" in configured:
+        findings.append(
+            _f(
+                True,
+                f"{ENDPOINT_VARIABLE} in {ENV_FILE} refers to another variable, so check cannot tell where turns go.",
+                "Make sure it resolves to the Emet the key came from.",
+            )
+        )
+        return None, findings
     if in_code is None and _origin(configured) != DEFAULT_ENDPOINT and configured.strip() and (old := _old_sdk(root)):
         # This SDK ignores EMET_ENDPOINT, valid or not, and sends to production; upgrading is the fix
         findings.append(old)
@@ -333,7 +342,7 @@ def _scan(text: str) -> _Scan:
         elif isinstance(node, ast.ImportFrom) and node.module == "emet_sdk":
             names |= {a.asname or a.name: a.name for a in node.names if a.name in ("configure", "turn")}
     configures = turns = False
-    endpoints: list[str] = []
+    endpoints: list[str | None] = []
     calls = sorted((n for n in ast.walk(tree) if isinstance(n, ast.Call)), key=lambda n: (n.lineno, n.col_offset))
     for node in calls:
         func = node.func
@@ -346,17 +355,18 @@ def _scan(text: str) -> _Scan:
         turns = turns or called == "turn"
         if called == "configure":
             configures = True
+            endpoints.append(None)
             for keyword in node.keywords:
                 value = keyword.value
                 if keyword.arg is None:
-                    endpoints.append(UNREADABLE)  # **kwargs may carry an endpoint
+                    endpoints[-1] = UNREADABLE  # **kwargs may carry an endpoint
                 elif keyword.arg != "endpoint" or (isinstance(value, ast.Constant) and value.value is None):
                     continue
                 elif isinstance(value, ast.Constant) and isinstance(value.value, str):
-                    endpoints.append(value.value)
+                    endpoints[-1] = value.value
                 else:
-                    endpoints.append(UNREADABLE)
-    # The SDK keeps the first configure(); with several, check cannot know which runs first
+                    endpoints[-1] = UNREADABLE
+    # The SDK keeps the first configure(); with several that differ, check cannot know which runs first
     endpoint = endpoints[0] if len(set(endpoints)) == 1 else (UNREADABLE if endpoints else None)
     return _Scan(configures, turns, endpoint)
 

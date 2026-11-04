@@ -113,6 +113,8 @@ def configure(
     # An explicit bad endpoint raises here, before anything is installed
     origin, source = resolve_endpoint(endpoint, None) if endpoint is not None else (DEFAULT_ENDPOINT, "")
     with _lock:
+        if _processor is not None:
+            return
         if endpoint is None:
             try:
                 origin, source = resolve_endpoint(None, os.environ.get(ENDPOINT_VARIABLE))
@@ -126,8 +128,6 @@ def configure(
                         ENDPOINT_VARIABLE,
                     )
                 return
-        if _processor is not None:
-            return
         key = os.environ.get(KEY_VARIABLE, "").strip()
         if not key:
             if not _said_off:

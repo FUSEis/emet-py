@@ -282,6 +282,8 @@ def test_a_refused_key_mentions_local_emet_only_when_it_is_in_use(app: Path) -> 
             UNREADABLE,
         ),
         ('\ufeffimport emet_sdk\nemet_sdk.configure(endpoint="http://localhost:8000")\n', "http://localhost:8000"),
+        ('import emet_sdk\nemet_sdk.configure()\nemet_sdk.configure(endpoint="http://localhost:8000")\n', UNREADABLE),
+        ("import emet_sdk\nemet_sdk.configure()\nemet_sdk.configure(endpoint=None)\n", None),
     ],
 )
 def test_aliases_and_unreadable_endpoints(source: str, expected: str) -> None:
@@ -449,3 +451,18 @@ def test_an_unparseable_file_with_an_aliased_import_still_counts(app: Path) -> N
     (app / "app" / "main.py").write_text("import emet_sdk as e\ne.configure()\nwith e.turn(t, c):\n    x = (\n")
     _, report = check(app, last=False)
     assert (report["setup"]["configure_in"], report["setup"]["turn_in"]) == (["app/main.py"], ["app/main.py"])
+
+
+def test_an_endpoint_less_configure_in_another_file_makes_the_endpoint_unreadable(app: Path) -> None:
+    (app / "app" / "main.py").write_text("import emet_sdk\nemet_sdk.configure()\n")
+    (app / "app" / "worker.py").write_text('import emet_sdk\nemet_sdk.configure(endpoint="http://localhost:8000")\n')
+    _, report = check(app, last=False)
+    assert report["setup"]["sends_to"] == ""
+
+
+def test_an_interpolated_emet_endpoint_is_said_not_refused(app: Path) -> None:
+    (app / ".env").write_text("EMET_APPLICATION_KEY=AbCd1234.secret\nEMET_ENDPOINT=${LOCAL_EMET}\n")
+    _, report = check(app, last=False)
+    assert report["setup"]["sends_to"] == ""
+    finding = next(f for f in report["setup"]["findings"] if "refers to another variable" in f["what"])
+    assert finding["ok"] is True

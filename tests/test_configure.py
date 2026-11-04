@@ -239,8 +239,19 @@ def test_a_disallowed_emet_endpoint_turns_emet_off(
     assert _configure._processor is None
     assert caplog.text.count("Emet is off: EMET_ENDPOINT is not https://app.emet.so or a localhost address") == 1
     # The value is never logged: a URL can carry credentials
-    assert "token" not in caplog.text
+    assert "token" not in caplog.text and "example.com" not in caplog.text
     assert KEY not in caplog.text
+
+
+def test_a_bad_emet_endpoint_after_setup_leaves_emet_on(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    emet_sdk.configure()
+    processor = _configure._processor
+    monkeypatch.setenv("EMET_ENDPOINT", "https://example.com")
+    emet_sdk.configure()
+    assert _configure._processor is processor is not None
+    assert "Emet is off" not in caplog.text
 
 
 def test_a_non_production_endpoint_is_said_at_startup(
