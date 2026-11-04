@@ -17,7 +17,7 @@ from emet_sdk._delivery import DeliveryResult, captured, new_result
 from emet_sdk._envelope import TurnSkipped, build_envelope
 from emet_sdk._processor import CapturedTurn, EmetSpanProcessor
 from emet_sdk._redact import Scrubber
-from emet_sdk._transport import DEFAULT_ENDPOINT, Sender, check_endpoint
+from emet_sdk._transport import DEFAULT_ENDPOINT, ENDPOINT_VARIABLE, Sender, resolve_endpoint
 from emet_sdk._worker import Worker
 
 logger = logging.getLogger("emet_sdk")
@@ -30,6 +30,7 @@ _lock = threading.Lock()
 _processor: EmetSpanProcessor | None = None
 _worker: Worker | None = None
 _said_off = False
+_said_bad_endpoint = False
 
 
 class _Pipeline:
@@ -97,7 +98,7 @@ def configure(
     *,
     service_name: str | None = None,
     on_delivery: Callable[[DeliveryResult], None] | None = None,
-    endpoint: str = DEFAULT_ENDPOINT,
+    endpoint: str | None = None,
 ) -> None:
     """Adds Emet to the global TracerProvider, creating an SDK provider when the app has none.
 
@@ -106,13 +107,27 @@ def configure(
     that already exports elsewhere keeps doing so, with the same sampling. Calling it again does nothing.
 
     service_name names the app in Emet. on_delivery receives each turn's delivery result on Emet's own thread.
-    endpoint is for testing against Emet on this machine.
+    endpoint is for testing against Emet on this machine; without it, EMET_ENDPOINT is used, then production.
     """
-    global _processor, _worker, _said_off
-    origin = check_endpoint(endpoint)
+    global _processor, _worker, _said_off, _said_bad_endpoint
+    # An explicit bad endpoint raises here, before anything is installed
+    origin, source = resolve_endpoint(endpoint, None) if endpoint is not None else (DEFAULT_ENDPOINT, "")
     with _lock:
         if _processor is not None:
             return
+        if endpoint is None:
+            try:
+                origin, source = resolve_endpoint(None, os.environ.get(ENDPOINT_VARIABLE))
+            except ValueError:
+                # The value is not logged: a URL can carry credentials
+                if not _said_bad_endpoint:
+                    _said_bad_endpoint = True
+                    logger.error(
+                        "Emet is off: %s is not https://app.emet.so or a localhost address. "
+                        "Unset it, or set it to your local Emet, such as http://localhost:8000.",
+                        ENDPOINT_VARIABLE,
+                    )
+                return
         key = os.environ.get(KEY_VARIABLE, "").strip()
         if not key:
             if not _said_off:
@@ -134,6 +149,11 @@ def configure(
         provider.add_span_processor(processor)
         _turn._listeners.append(processor)  # pyright: ignore[reportPrivateUsage]
         _processor, _worker = processor, worker
+        if origin != DEFAULT_ENDPOINT:
+            # A local endpoint left in a deployed app would lose every turn as unreachable
+            logger.warning(
+                "Emet sends turns to %s, not production (set by %s). Remove it to send to production.", origin, source
+            )
         atexit.register(flush, EXIT_FLUSH_SECONDS)
 
 

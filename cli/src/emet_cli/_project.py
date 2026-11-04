@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from collections.abc import Iterable
@@ -52,20 +53,39 @@ def write_private(path: Path, text: str) -> None:
 
 def set_env_line(path: Path, name: str, value: str) -> None:
     """Sets NAME=value in a dotenv file, leaving every other line as it was."""
+    set_env_lines(path, {name: value})
+
+
+def set_env_lines(path: Path, values: dict[str, str | None]) -> bool:
+    """Sets each NAME=value, and removes each NAME whose value is None, in one atomic write; returns True when a
+    line was removed. Every other line is left as it was."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    entry = f"{name}={value}"
-    kept = [line for line in lines if not _assigns(line, name)]
-    write_private(path, "\n".join([*kept, entry]) + "\n")
+    kept = [line for line in lines if not any(_assigns(line, name) for name in values)]
+    removed = any(_assigns(line, name) for line in lines for name, value in values.items() if value is None)
+    entries = [f"{name}={value}" for name, value in values.items() if value is not None]
+    write_private(path, "\n".join([*kept, *entries]) + "\n" if kept or entries else "")
+    return removed
+
+
+def env_value(path: Path, name: str) -> str:
+    """Returns the value a dotenv file assigns to name, or an empty string, read the way python-dotenv reads it:
+    the last assignment wins, and an unquoted value ends at whitespace before a #."""
+    if not path.is_file():
+        return ""
+    value = ""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _assigns(line, name):
+            raw = line.split("=", 1)[1].strip()
+            if raw[:1] in ("'", '"') and raw[1:].find(raw[0]) >= 0:
+                value = raw[1 : 1 + raw[1:].find(raw[0])]
+            else:
+                value = re.sub(r"\s+#.*", "", raw).strip()
+    return value
 
 
 def has_env_value(path: Path, name: str) -> bool:
     """Returns True when the dotenv file assigns a non-empty value to name."""
-    if not path.is_file():
-        return False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if _assigns(line, name) and line.split("=", 1)[1].strip().strip("'\""):
-            return True
-    return False
+    return bool(env_value(path, name))
 
 
 def ensure_ignored(path: Path, entries: Iterable[str]) -> list[str]:

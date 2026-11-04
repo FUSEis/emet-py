@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `EMET_ENDPOINT`: when `configure()` gets no endpoint, the SDK sends to the localhost address in this variable, or to production when it is unset. A value outside production and localhost turns Emet off with one log line that does not repeat the value.
+- The SDK logs one warning at startup when it sends anywhere but production, naming what set the endpoint.
+- `emet-cli login --endpoint http://localhost:8000` saves `EMET_ENDPOINT` next to the key, so an app tested against Emet on your machine sends there with no code change. Logging in to production removes it.
+- `emet-cli check` says where the app sends its turns, using the SDK's own rules; flags a key that came from a different Emet, including an endpoint passed to `emet_sdk.configure()`, with the exact command to fix it; flags an endpoint the SDK would refuse; and flags an app whose `emet-sdk` is too old to read `EMET_ENDPOINT`.
+
+### Changed
+
+- When the key came from Emet on your machine, a refused key's fix gives the `login --endpoint` command and says that a key works only on the Emet that issued it.
+- `emet-cli login` to production says when it removes `EMET_ENDPOINT`.
+
 ## [0.1.1] - 2026-10-30
 
 The first release of `emet-cli`, versioned together with `emet-sdk` from now on.
