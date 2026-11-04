@@ -37,7 +37,7 @@ The mapping is pinned by fixtures: spans recorded from real Pydantic AI runs, an
 - **Batches** hold at most 200 spans or 4 MiB and never clip a span; a larger span travels alone. The turn span and `end: true` go only in the last batch, because Emet closes a trace as soon as its turn span arrives.
 - **Order and the stop rule.** Batches go in order. The first one Emet does not accept stops the turn: sending the rest would only add to a trace Emet will close incomplete. A batch Emet calls `late` is recorded and the rest still go.
 - **Retries.** One per batch, on a timeout, a server error, or a rate limit asking to wait 5 seconds or less, inside a 15-second budget per batch, so each batch reaches Emet before its 30-second idle close. Retrying is safe: Emet ignores spans it already stored.
-- **Where it goes.** Only `https://app.emet.so` or localhost, with the key as a bearer token and redirects refused, so the key cannot be carried anywhere else. Standard library HTTP only.
+- **Where it goes.** The `endpoint` argument, else `EMET_ENDPOINT`, else production, each checked by one function that `emet-cli check` also uses. Only `https://app.emet.so` or localhost, with the key as a bearer token and redirects refused, so the key cannot be carried anywhere else. Standard library HTTP only.
 
 ## The delivery result
 

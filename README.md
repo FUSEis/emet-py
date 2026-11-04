@@ -67,11 +67,12 @@ The user you pass to `turn()`, usually their email, is stored on the trace so Em
 
 | | |
 | --- | --- |
-| `configure(*, service_name=None, on_delivery=None, endpoint="https://app.emet.so")` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address, for testing against Emet on your machine. |
+| `configure(*, service_name=None, on_delivery=None, endpoint=None)` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address; without one, the SDK uses `EMET_ENDPOINT`, then production. |
 | `turn(tenant_ref, conversation_id, user=None)` | A context manager or decorator, sync or async, around one turn of your agent. `tenant_ref` is the External ID of the Team in Emet; `conversation_id` is your app's own thread id; `user` is who asked. |
 | `flush(timeout=10.0) -> bool` | Waits until every finished turn is sent; returns False when the timeout ran out first. Call it before a short-lived process exits. The SDK also flushes for up to 5 seconds at exit. |
 | `write_delivery_file(path)` | An `on_delivery` callback that saves the latest result to a file, for `emet-cli check --last`. Its folder must exist. |
 | `EMET_APPLICATION_KEY` | The key, read from the environment when `configure()` runs. |
+| `EMET_ENDPOINT` | A localhost address to send to instead of production, for testing against Emet on your machine. `emet-cli login --endpoint` sets it. A value outside production and localhost turns Emet off, with one log line. |
 
 **The delivery result** reports each turn as `sent`, `stopped` or `skipped`, with the reason, the trace and conversation ids, span and batch counts, whether the turn matched a Team (`unattributed`) or arrived after Emet closed it (`late`), and any tools Emet found missing arguments or results. A turn is **captured** when it was sent whole, attributed, on time and with no gaps. The result never holds the key, the tenant, the user or any content.
 
