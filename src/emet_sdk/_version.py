@@ -1,3 +1,3 @@
 """The package version, kept apart so every module can import it."""
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"

@@ -11,7 +11,7 @@ uvx emet-cli check          # what is set up, without sending anything
 uvx emet-cli check --last   # whether the last turn reached Emet whole, and the fix if not
 ```
 
-- **`login`** asks for your key at a hidden prompt and checks it with Emet without sending a trace. It saves the key to `.env` as `EMET_APPLICATION_KEY` and records only the key's public prefix in `.emet/key.json`, then adds both files to `.gitignore`. It refuses to run without a terminal, and refuses when either file is tracked by git.
+- **`login`** asks for your key at a hidden prompt and checks it with Emet without sending a trace. It saves the key to `.env` as `EMET_APPLICATION_KEY` and records only the key's public prefix in `.emet/key.json`, then adds both files to `.gitignore`. For Emet on your machine, `login --endpoint http://localhost:8000` also saves `EMET_ENDPOINT`, so the app sends there with no code change; a production login removes it. It refuses to run without a terminal, and refuses when either file is tracked by git.
 - **`init`** installs the matching `emet-sdk` with the app's package manager (uv, Poetry, or pip in the app's own virtual environment) and reports where the agent runs, whether the app loads `.env`, and the exact snippets to add. It edits no code: your coding agent does, and shows you the diff.
 - **`check`** reports the key, whether the app depends on `emet-sdk`, and where it calls `emet_sdk.configure()` and `emet_sdk.turn()`. With `--last`, it reads the delivery result the SDK saved in `.emet/last-delivery.json` and says whether the turn was captured. Add `--json` for your agent.
 
