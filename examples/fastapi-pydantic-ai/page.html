@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marlow Home · Spend assistant</title>
+<style>
+  :root {
+    --bg: #f7f5f2; --surface: #ffffff; --ink: #1f2328; --muted: #6b6f76; --line: #e4e0da;
+    --accent: #2f5d50; --accent-fg: #ffffff; --you: #eef3f1;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141615; --surface: #1d201f; --ink: #ecefed; --muted: #9aa19d; --line: #2c312f;
+      --accent: #7fbfa9; --accent-fg: #102019; --you: #22302b; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.5; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  select, input, button { font: inherit; }
+  select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+  #log { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 260px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .empty { color: var(--muted); margin: auto; text-align: center; }
+  .msg { max-width: 85%; padding: 10px 12px; border-radius: 10px; }
+  .msg.user { align-self: flex-end; background: var(--you); }
+  .msg.agent { align-self: flex-start; border: 1px solid var(--line); }
+  .msg small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+  button { padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .foot { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .foot button { background: none; color: var(--muted); padding: 0; font-weight: 400; text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Marlow Home <span>· Spend assistant</span></h1>
+    <label>Signed in as
+      <select id="user">
+        <option value="maya@marlowhome.example">Maya · Marketing</option>
+        <option value="theo@marlowhome.example">Theo · E-commerce</option>
+      </select>
+    </label>
+  </header>
+  <section id="log" aria-live="polite"><p class="empty">Ask about spend on paid search, social or display.</p></section>
+  <form id="ask">
+    <input id="question" autocomplete="off" value="What did we spend on paid search?" placeholder="Ask about paid search, social or display" aria-label="Your question">
+    <button id="send" type="submit">Ask</button>
+  </form>
+  <div class="foot"><span>Conversation <code id="thread"></code></span><button id="fresh" type="button">New conversation</button></div>
+</main>
+<script>
+  const log = document.getElementById("log");
+  const threadLabel = document.getElementById("thread");
+  let thread = "";
+  function newThread() {
+    thread = "thread-" + Math.random().toString(36).slice(2, 8);
+    threadLabel.textContent = thread;
+    log.innerHTML = '<p class="empty">Ask about spend on paid search, social or display.</p>';
+  }
+  function add(kind, who, text) {
+    log.querySelector(".empty")?.remove();
+    const div = document.createElement("div");
+    div.className = "msg " + kind;
+    const small = document.createElement("small");
+    small.textContent = who;
+    div.append(small, document.createTextNode(text));
+    log.append(div);
+  }
+  document.getElementById("fresh").addEventListener("click", newThread);
+  document.getElementById("user").addEventListener("change", newThread);
+  document.getElementById("ask").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = document.getElementById("question");
+    const button = document.getElementById("send");
+    const message = input.value.trim();
+    if (!message) return;
+    const user = document.getElementById("user");
+    add("user", user.selectedOptions[0].textContent.split(" · ")[0], message);
+    input.value = "";
+    button.disabled = true;
+    try {
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-demo-user": user.value },
+        body: JSON.stringify({ message, thread_id: thread }),
+      });
+      if (!response.ok) {
+        let detail = "";
+        try { const body = await response.json(); if (typeof body.detail === "string") detail = ": " + body.detail; } catch {}
+        add("agent", "Assistant", "The app returned an error (" + response.status + detail + "). Check its terminal for details.");
+      } else {
+        add("agent", "Assistant", (await response.json()).answer);
+      }
+    } catch {
+      add("agent", "Assistant", "The app did not answer. Is it running?");
+    } finally {
+      button.disabled = false;
+      input.focus();
+    }
+  });
+  newThread();
+</script>
+</body>
+</html>

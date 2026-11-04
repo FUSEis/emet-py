@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 from data import CHANNEL_SPEND, DAILY_SPEND, USERS
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from scripted_model import SCRIPTED_MODEL
@@ -43,7 +45,8 @@ class ChatIn(BaseModel):
 
 
 def current_user(x_demo_user: Annotated[str, Header()]) -> User:
-    """Stands in for real auth: the server looks the user up, it never trusts the request for who they are."""
+    """Stands in for real auth. A real app checks a session or token here; this demo trusts the header and only
+    looks the user up in its own records, so never copy it as an auth pattern."""
     user = USERS.get(x_demo_user)
     if user is None:
         raise HTTPException(status_code=401, detail="unknown user")
@@ -54,3 +57,9 @@ def current_user(x_demo_user: Annotated[str, Header()]) -> User:
 async def chat(body: ChatIn, user: Annotated[User, Depends(current_user)]) -> dict[str, str]:
     result = await agent.run(body.message)
     return {"answer": str(result.output)}
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def page() -> str:
+    """Serves a small chat page that picks the signed-in user, so the demo needs no headers."""
+    return (Path(__file__).parent / "page.html").read_text(encoding="utf-8")
