@@ -165,6 +165,24 @@ def op(name: str, **extra: Any) -> dict[str, Any]:
     return {"gen_ai.operation.name": name, **extra}
 
 
+def test_a_tool_marked_truncated_says_so_and_others_do_not() -> None:
+    envelope = build_envelope(
+        turn_of(
+            span(1, None, "invoke_agent", op("invoke_agent"), start=0, end=9),
+            span(2, 1, "execute_tool cut", op("execute_tool", **{"emet.tool.result_truncated": True}), start=1, end=2),
+            span(3, 1, "execute_tool whole", op("execute_tool"), start=3, end=4),
+            # Only a tool's result can be cut short
+            span(4, 1, "chat", op("chat", **{"emet.tool.result_truncated": True}), start=5, end=6),
+        )
+    )
+    spans = by_name(envelope)
+    assert spans["execute_tool cut"]["is_truncated"] is True
+    assert "is_truncated" not in spans["execute_tool whole"]
+    assert "is_truncated" not in spans["chat"]
+    # The mark travels as the span field, never as an attribute
+    assert "emet.tool.result_truncated" not in spans["execute_tool cut"].get("attributes", {})
+
+
 def test_spans_without_a_genai_marker_are_dropped_and_skipped_over() -> None:
     envelope = build_envelope(
         turn_of(

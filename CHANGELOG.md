@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `mark_result_truncated()`: called inside a tool that cuts its result short, it marks that tool call so Emet sends it with `is_truncated` and treats the result as incomplete evidence, never reading a figure past the cut as one the model invented.
+
 ## [0.1.2] - 2026-11-04
 
 ### Added

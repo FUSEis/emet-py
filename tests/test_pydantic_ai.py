@@ -49,6 +49,29 @@ async def test_a_run_inside_a_turn_is_collected(harness: Harness) -> None:
     assert operations(captured) == ["chat", "chat", "execute_tool", "execute_tool", "invoke_agent"]
 
 
+async def test_a_tool_can_mark_its_result_truncated(harness: Harness) -> None:
+    instrumentation = Instrumentation(InstrumentationSettings(tracer_provider=harness.provider))
+    agent = Agent(TestModel(), capabilities=[instrumentation])
+
+    @agent.tool_plain
+    def get_report(n: int) -> str:  # pyright: ignore[reportUnusedFunction]
+        """Returns a report cut to a length."""
+        emet_sdk.mark_result_truncated()
+        return "first rows (cut short)"
+
+    with emet_sdk.turn(*TURN_VALUES):
+        await agent.run("Show the report.")
+    [captured] = harness.turns
+    # The sync tool runs on a worker thread, and the mark still lands on its own span
+    marked = {
+        str((span.attributes or {}).get("gen_ai.operation.name")): (span.attributes or {}).get(
+            "emet.tool.result_truncated"
+        )
+        for span in captured.spans
+    }
+    assert marked == {"invoke_agent": None, "chat": None, "execute_tool": True}
+
+
 async def test_a_run_outside_a_turn_is_not(harness: Harness) -> None:
     await make_agent(harness).run("What did we spend on paid search?")
     assert harness.turns == []

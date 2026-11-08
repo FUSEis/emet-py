@@ -25,6 +25,7 @@ your app ── turn() ──┐
 - **The agent span becomes the turn.** When the top of the tree is a bare model or tool call, a synthetic turn span is added above it, so its content is kept. The turn runs from the first span's start to the last span's end.
 - **The final output** is the last model call that finished normally with text and no tool call.
 - **The conversation id comes from `turn()`**, never from the spans: Pydantic AI generates a fresh one per run when the app passes none.
+- **A clipped tool result** is sent with `is_truncated: true` when the tool called `mark_result_truncated()`, which sets `emet.tool.result_truncated` on its span. The field is left out otherwise, so an unmarked turn builds the same envelope as before.
 - **Identifiers** outside Emet's charset are sent as a readable prefix and a hash, so two distinct ids never collide.
 - **Redaction** (`_redact.py`) runs over every string the envelope carries, as the README describes, and counts what it replaced.
 

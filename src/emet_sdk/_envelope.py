@@ -54,6 +54,8 @@ ATTRIBUTE_TEXT_MAX = 1024
 ATTRIBUTES_MAX_BYTES = 16384
 MEDIA_PART_TYPES = ("blob", "binary", "file", "image")
 MAX_TOKENS = 2_147_483_647
+# Set by mark_result_truncated() on a tool span whose result the app cut before returning it
+TRUNCATED_ATTRIBUTE = "emet.tool.result_truncated"
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
@@ -209,6 +211,8 @@ def _span(span: ReadableSpan, scrub: Scrubber) -> dict[str, Any]:
         reasons = attrs.get("gen_ai.response.finish_reasons")
         if isinstance(reasons, Sequence) and reasons and isinstance(reasons[0], str):
             entry["finish_reason"] = scrub.text(reasons[0])[:32]
+    if kind == "tool" and attrs.get(TRUNCATED_ATTRIBUTE) is True:
+        entry["is_truncated"] = True
     entry.update(_error(span, scrub))
     attributes = _attributes(attrs, scrub)
     if attributes:

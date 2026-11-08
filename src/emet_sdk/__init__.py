@@ -2,8 +2,9 @@
 
 from emet_sdk._configure import configure, flush
 from emet_sdk._delivery import DeliveryResult, write_delivery_file
+from emet_sdk._truncation import mark_result_truncated
 from emet_sdk._turn import TurnInfo, turn
 from emet_sdk._version import VERSION
 
-__all__ = ["DeliveryResult", "TurnInfo", "configure", "flush", "turn", "write_delivery_file"]
+__all__ = ["DeliveryResult", "TurnInfo", "configure", "flush", "mark_result_truncated", "turn", "write_delivery_file"]
 __version__ = VERSION
