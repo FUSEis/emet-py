@@ -26,6 +26,7 @@ def fresh_globals(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         _configure._processor = None
         _configure._worker = None
         _configure._said_off = False
+        _configure._said_bad_provider = False
         _turn._listeners.clear()
 
     monkeypatch.setenv("EMET_APPLICATION_KEY", KEY)
@@ -107,10 +108,36 @@ def test_calling_it_again_does_nothing() -> None:
     assert len(_turn._listeners) == 1
 
 
-def test_names_the_fix_for_a_non_sdk_provider() -> None:
+def test_a_provider_that_cannot_take_a_processor_turns_emet_off(caplog: pytest.LogCaptureFixture) -> None:
     trace.set_tracer_provider(trace.NoOpTracerProvider())
-    with pytest.raises(TypeError, match=r"opentelemetry\.sdk\.trace\.TracerProvider"):
-        emet_sdk.configure()
+    emet_sdk.configure()
+    emet_sdk.configure()
+    assert _configure._processor is None
+    assert _turn._listeners == []
+    off = [r for r in caplog.records if "Emet is off" in r.getMessage()]
+    assert len(off) == 1
+    assert "opentelemetry.sdk.trace.TracerProvider" in off[0].getMessage()
+
+
+class WrappingProvider(trace.TracerProvider):
+    """Wraps the SDK's provider without subclassing it, as Logfire's does."""
+
+    def __init__(self, inner: TracerProvider) -> None:
+        self.inner = inner
+
+    def get_tracer(self, *args: Any, **kwargs: Any) -> trace.Tracer:
+        return self.inner.get_tracer(*args, **kwargs)
+
+    def add_span_processor(self, processor: Any) -> None:
+        self.inner.add_span_processor(processor)
+
+
+def test_a_provider_that_wraps_the_sdk_works(posts: list[dict[str, Any]]) -> None:
+    trace.set_tracer_provider(WrappingProvider(TracerProvider()))
+    emet_sdk.configure()
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert len(posts[0]["batch"]["spans"]) == 2
 
 
 def test_a_configured_app_sends_its_turns_and_reports_them(

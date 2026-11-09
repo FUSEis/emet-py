@@ -43,16 +43,21 @@ def test_a_blank_user_is_none(harness: Harness) -> None:
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "error"),
+    ("kwargs", "tenant_ref", "conversation_id"),
     [
-        ({"tenant_ref": " ", "conversation_id": "c"}, ValueError),
-        ({"tenant_ref": "t", "conversation_id": ""}, ValueError),
-        ({"tenant_ref": "t", "conversation_id": "c", "user": 7}, TypeError),
+        ({"tenant_ref": " ", "conversation_id": "c"}, "", "c"),
+        ({"tenant_ref": None, "conversation_id": "c"}, "", "c"),
+        ({"tenant_ref": "t", "conversation_id": ""}, "t", ""),
+        ({"tenant_ref": "t", "conversation_id": "c", "user": 7}, "t", "c"),
     ],
 )
-def test_turn_rejects_bad_values(kwargs: dict[str, object], error: type[Exception]) -> None:
-    with pytest.raises(error):
-        emet_sdk.turn(**kwargs)  # pyright: ignore[reportArgumentType]
+def test_a_bad_value_never_raises_into_the_app(
+    harness: Harness, kwargs: dict[str, object], tenant_ref: str, conversation_id: str
+) -> None:
+    with emet_sdk.turn(**kwargs), harness.tracer.start_as_current_span("chat"):  # pyright: ignore[reportArgumentType]
+        pass
+    info = harness.turns[0].info
+    assert (info.tenant_ref, info.conversation_id, info.user) == (tenant_ref, conversation_id, None)
 
 
 def test_the_processor_never_writes_attributes(harness: Harness) -> None:

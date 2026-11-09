@@ -25,6 +25,7 @@ Use `uvx emet-cli@0.1.2` for every command below, so the CLI and the SDK it inst
    - Add the `configure` snippet once where the app starts, after any tracing setup it already has. Never pass `endpoint=`: `login` saves a local endpoint to `.env` when there is one.
    - Make sure `Agent.instrument_all()` runs at startup.
    - Wrap each agent run in `with emet_sdk.turn(...)`, using the values from step 4.
+   - If a run streams through a response generator, open `turn()` inside that generator, not around the code that returns the response.
    - If `env_loaded_by` is empty, make the app load `.env` at startup, with the `dotenv` snippet or its run command's `--env-file .env`.
 
    Show the developer the diff, and continue.

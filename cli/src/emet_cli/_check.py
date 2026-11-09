@@ -38,7 +38,14 @@ RESTART = (
 
 # One line per reason the SDK can give: what happened, then the fix
 SKIPPED = {
-    "no_spans": ("turn() ran, but nothing inside it emitted spans.", INSTRUMENT),
+    "no_spans": (
+        "turn() ran, but nothing inside it emitted spans.",
+        f"{INSTRUMENT} If the agent streams, open turn() inside the generator that runs the stream.",
+    ),
+    "missing_turn_value": (
+        "tenant_ref or conversation_id was empty.",
+        "Pass the Team's External ID and your app's thread id, from your server's own auth and storage.",
+    ),
     "no_genai_spans": ("turn() ran, but no AI framework call happened inside it.", INSTRUMENT),
     "tenant_ref_too_long": ("tenant_ref was over 255 characters.", "Pass the Team's External ID as tenant_ref."),
     "state_cap": (

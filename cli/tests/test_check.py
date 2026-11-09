@@ -110,6 +110,7 @@ def test_a_captured_turn(app: Path) -> None:
         ({"status": "stopped", "reason": "something_new"}, "something_new", "issues"),
         ({"status": "skipped", "reason": "no_spans"}, "nothing inside it emitted spans", "instrument_all"),
         ({"status": "skipped", "reason": "tenant_ref_too_long"}, "255 characters", "External ID"),
+        ({"status": "skipped", "reason": "missing_turn_value"}, "was empty", "External ID"),
         ({"status": "skipped", "reason": "span_never_ended"}, "never ended", "End every span"),
     ],
 )

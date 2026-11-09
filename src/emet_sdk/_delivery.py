@@ -53,7 +53,8 @@ def captured(result: DeliveryResult) -> bool:
 def write_delivery_file(path: str | os.PathLike[str]) -> Callable[[DeliveryResult], None]:
     """Returns an on_delivery callback that writes each result to path, for `emet-cli check --last`.
 
-    The path is resolved now, against the working directory. Its folder must exist; write errors are ignored.
+    The path is resolved now, against the working directory. Its folder must exist and is never created here, so a
+    deployed app without it writes nothing. Write errors are ignored.
     """
     target = Path(path).resolve()
 

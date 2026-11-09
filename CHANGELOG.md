@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `configure()` works after `logfire.configure()`. It raised `TypeError` because Logfire's tracer provider wraps the OpenTelemetry SDK's without subclassing it. Any provider with `add_span_processor` is now accepted.
+- A provider that cannot take a span processor turns Emet off with one log line, instead of raising at startup.
+- `turn()` no longer raises on an empty or non-string value. The agent runs as usual and an empty `tenant_ref` or `conversation_id` is reported as skipped, with the reason `missing_turn_value`.
+- `emet-cli check --last` names streaming as a cause when a turn had no spans.
+
+### Changed
+
+- The README shows how to stream inside `turn()` and when the delivery file is written, and its links work on PyPI.
+
 ## [0.1.2] - 2026-11-04
 
 ### Added

@@ -70,6 +70,8 @@ def build_envelope(captured: CapturedTurn, secrets: tuple[str, ...] = ()) -> dic
     info = captured.info
     if captured.skipped:
         raise TurnSkipped(captured.skipped)
+    if not info.tenant_ref or not info.conversation_id:
+        raise TurnSkipped("missing_turn_value")
     if not captured.spans:
         # Sampled out, or no instrumented agent ran inside turn()
         raise TurnSkipped("no_spans")
