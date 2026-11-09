@@ -119,6 +119,18 @@ def test_a_provider_that_cannot_take_a_processor_turns_emet_off(caplog: pytest.L
     assert "opentelemetry.sdk.trace.TracerProvider" in off[0].getMessage()
 
 
+def test_a_provider_that_refuses_the_processor_turns_emet_off(caplog: pytest.LogCaptureFixture) -> None:
+    class Refusing(trace.NoOpTracerProvider):
+        def add_span_processor(self, processor: Any) -> None:
+            raise RuntimeError("no")
+
+    trace.set_tracer_provider(Refusing())
+    emet_sdk.configure()
+    assert _configure._processor is None
+    assert _turn._listeners == []
+    assert "Emet is off" in caplog.text
+
+
 class WrappingProvider(trace.TracerProvider):
     """Wraps the SDK's provider without subclassing it, as Logfire's does."""
 

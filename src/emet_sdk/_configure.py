@@ -153,7 +153,11 @@ def configure(
         pipeline = _Pipeline(Sender(origin, key), origin, key, service_name, on_delivery)
         worker = Worker(pipeline.handle, pipeline.deliver)
         processor = EmetSpanProcessor(worker.submit)
-        add_span_processor(processor)
+        try:
+            add_span_processor(processor)
+        except Exception:
+            logger.exception("Emet is off: the app's tracer provider refused its span processor")
+            return
         _turn._listeners.append(processor)  # pyright: ignore[reportPrivateUsage]
         _processor, _worker = processor, worker
         if origin != DEFAULT_ENDPOINT:

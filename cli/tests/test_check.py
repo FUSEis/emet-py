@@ -123,6 +123,12 @@ def test_every_outcome_says_what_happened_and_the_fix(app: Path, fields: dict[st
     assert fix in report["last"]["fix"]
 
 
+def test_no_spans_names_streaming_as_a_cause(app: Path) -> None:
+    deliver(app, status="skipped", reason="no_spans")
+    _, report = check(app, last=True, now=NOW)
+    assert "inside the generator" in report["last"]["fix"]
+
+
 def test_a_result_from_another_sdk_version_is_not_read(app: Path) -> None:
     deliver(app, schema_version=2)
     _, report = check(app, last=True, now=NOW)
