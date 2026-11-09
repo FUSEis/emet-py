@@ -46,7 +46,7 @@ Set `EMET_APPLICATION_KEY` in the app's environment. In production that is your 
 
 - **Adds, never replaces.** `configure()` adds one span processor to your app's `TracerProvider`, and creates a provider only when the app has none. Logfire, Datadog or any other exporter keeps receiving the same spans, with the same sampling.
 - **Opt in per turn.** Only spans that start inside `turn()` are sent. Other agents, HTTP calls and database queries are not.
-- **Nothing written onto your spans.** The tenant, conversation and user stay inside the SDK. They never reach your other exporters, and never travel to downstream services as baggage.
+- **Nothing written onto your spans.** The tenant, conversation and user stay inside the SDK. They never reach your other exporters, and never travel to downstream services as baggage. The one exception is the boolean `mark_result_truncated()` sets, only when your tool calls it.
 - **Never in your way.** Turns are built and sent on a background thread, and the SDK never raises into your app.
 
 [DESIGN.md](DESIGN.md) has the details: how a turn is collected, built into Emet's envelope, split and sent.
@@ -69,7 +69,7 @@ The user you pass to `turn()`, usually their email, is stored on the trace so Em
 | --- | --- |
 | `configure(*, service_name=None, on_delivery=None, endpoint=None)` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address; without one, the SDK uses `EMET_ENDPOINT`, then production. |
 | `turn(tenant_ref, conversation_id, user=None)` | A context manager or decorator, sync or async, around one turn of your agent. `tenant_ref` is the External ID of the Team in Emet; `conversation_id` is your app's own thread id; `user` is who asked. |
-| `mark_result_truncated()` | Call inside a tool that cuts its result short, such as one capped at a length. Emet then treats that result as incomplete, so a figure past the cut is never read as one the model invented. It sets one boolean on the tool's span, the only thing the SDK ever writes onto a span, and only when you call it. |
+| `mark_result_truncated()` | Call inside a tool that cuts its result short, such as one capped at a length. Emet then treats that result as incomplete, so a figure past the cut is never read as one the model invented. It sets one boolean on the tool's span, the only thing the SDK ever writes onto a span, and only when you call it. Call it from the tool's own code: inside a nested span, the mark lands on that span and is lost. |
 | `flush(timeout=10.0) -> bool` | Waits until every finished turn is sent; returns False when the timeout ran out first. Call it before a short-lived process exits. The SDK also flushes for up to 5 seconds at exit. |
 | `write_delivery_file(path)` | An `on_delivery` callback that saves the latest result to a file, for `emet-cli check --last`. Its folder must exist. |
 | `EMET_APPLICATION_KEY` | The key, read from the environment when `configure()` runs. |
