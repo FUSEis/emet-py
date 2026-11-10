@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-10
+
 ### Fixed
 
 - `configure()` works after `logfire.configure()`. It raised `TypeError` because Logfire's tracer provider wraps the OpenTelemetry SDK's without subclassing it. Any provider with `add_span_processor` is now accepted.
@@ -63,7 +65,8 @@ The first release.
 - `flush()` waits for finished turns to be sent, and runs for up to 5 seconds at exit.
 - Secrets are redacted from every string, the Emet key included, the system prompt is sent as a SHA-256 hash, inline files and images are replaced by their type, size and digest, and a failed call sends its error message without the stack trace.
 
-[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/FUSEis/emet-py/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/FUSEis/emet-py/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/FUSEis/emet-py/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/FUSEis/emet-py/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/FUSEis/emet-py/releases/tag/v0.1.0
