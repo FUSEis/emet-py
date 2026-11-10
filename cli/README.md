@@ -19,4 +19,4 @@ uvx emet-cli check --last   # whether the last turn reached Emet whole, and the 
 
 ## With a coding agent
 
-Give your agent [AGENT_SETUP.md](AGENT_SETUP.md): "Follow https://github.com/FUSEis/emet-py/blob/main/cli/AGENT_SETUP.md to set up Emet." It runs these commands in order, asks you to run `login` yourself when no key is saved, picks the tenant, conversation and user values from your code, and shows you the values and the diff it wired.
+Give your agent [AGENT_SETUP.md](https://github.com/FUSEis/emet-py/blob/main/cli/AGENT_SETUP.md): "Follow https://github.com/FUSEis/emet-py/blob/main/cli/AGENT_SETUP.md to set up Emet." It runs these commands in order, asks you to run `login` yourself when no key is saved, picks the tenant, conversation and user values from your code, and shows you the values and the diff it wired.

@@ -31,6 +31,7 @@ _processor: EmetSpanProcessor | None = None
 _worker: Worker | None = None
 _said_off = False
 _said_bad_endpoint = False
+_said_bad_provider = False
 
 
 class _Pipeline:
@@ -109,7 +110,7 @@ def configure(
     service_name names the app in Emet. on_delivery receives each turn's delivery result on Emet's own thread.
     endpoint is for testing against Emet on this machine; without it, EMET_ENDPOINT is used, then production.
     """
-    global _processor, _worker, _said_off, _said_bad_endpoint
+    global _processor, _worker, _said_off, _said_bad_endpoint, _said_bad_provider
     # An explicit bad endpoint raises here, before anything is installed
     origin, source = resolve_endpoint(endpoint, None) if endpoint is not None else (DEFAULT_ENDPOINT, "")
     with _lock:
@@ -138,15 +139,25 @@ def configure(
             trace.set_tracer_provider(TracerProvider())
         # Read it back: another thread may have set the provider first
         provider = trace.get_tracer_provider()
-        if not isinstance(provider, TracerProvider):
-            raise TypeError(
-                f"Emet needs the OpenTelemetry SDK's TracerProvider, but the app set {type(provider).__name__}. "
-                "Set an opentelemetry.sdk.trace.TracerProvider before calling emet_sdk.configure()."
-            )
+        # Not an isinstance check: Logfire's provider wraps the SDK's without subclassing it
+        add_span_processor = getattr(provider, "add_span_processor", None)
+        if not callable(add_span_processor):
+            if not _said_bad_provider:
+                _said_bad_provider = True
+                logger.error(
+                    "Emet is off: the app's tracer provider, %s, cannot take a span processor. "
+                    "Set an opentelemetry.sdk.trace.TracerProvider before calling emet_sdk.configure().",
+                    type(provider).__name__,
+                )
+            return
         pipeline = _Pipeline(Sender(origin, key), origin, key, service_name, on_delivery)
         worker = Worker(pipeline.handle, pipeline.deliver)
         processor = EmetSpanProcessor(worker.submit)
-        provider.add_span_processor(processor)
+        try:
+            add_span_processor(processor)
+        except Exception:
+            logger.exception("Emet is off: the app's tracer provider refused its span processor")
+            return
         _turn._listeners.append(processor)  # pyright: ignore[reportPrivateUsage]
         _processor, _worker = processor, worker
         if origin != DEFAULT_ENDPOINT:

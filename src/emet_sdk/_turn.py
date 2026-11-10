@@ -37,33 +37,20 @@ def current_turn(ctx: otel_context.Context | None = None) -> TurnInfo | None:
     return value if isinstance(value, TurnInfo) else None
 
 
-def _required(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"emet_sdk.turn() needs {what}")
-    return value.strip()
-
-
-def _optional(value: object) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise TypeError("emet_sdk.turn() takes the user as a string, such as their email")
-    return value.strip() or None
+def _text(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
 
 
 class turn:
     """Marks one turn of your agent for Emet. Only spans started inside it are sent.
 
     Use it as a context manager around the agent call, or as a decorator. Take every value from your server's own
-    auth and storage, never from the request body.
+    auth and storage, never from the request body. An empty tenant_ref or conversation_id never raises: the agent
+    runs as usual and the turn is reported as skipped.
     """
 
     def __init__(self, tenant_ref: str, conversation_id: str, user: str | None = None) -> None:
-        self._values = (
-            _required(tenant_ref, "a tenant_ref: the External ID of the Team in Emet"),
-            _required(conversation_id, "a conversation_id: your app's own thread or session id"),
-            _optional(user),
-        )
+        self._values = (_text(tenant_ref), _text(conversation_id), _text(user) or None)
         self._entered: list[tuple[TurnInfo, Token[otel_context.Context]]] = []
 
     def __enter__(self) -> TurnInfo:

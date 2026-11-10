@@ -110,6 +110,7 @@ def test_a_captured_turn(app: Path) -> None:
         ({"status": "stopped", "reason": "something_new"}, "something_new", "issues"),
         ({"status": "skipped", "reason": "no_spans"}, "nothing inside it emitted spans", "instrument_all"),
         ({"status": "skipped", "reason": "tenant_ref_too_long"}, "255 characters", "External ID"),
+        ({"status": "skipped", "reason": "missing_turn_value"}, "was empty", "External ID"),
         ({"status": "skipped", "reason": "span_never_ended"}, "never ended", "End every span"),
     ],
 )
@@ -120,6 +121,12 @@ def test_every_outcome_says_what_happened_and_the_fix(app: Path, fields: dict[st
     assert code == 1
     assert what in report["last"]["what"]
     assert fix in report["last"]["fix"]
+
+
+def test_no_spans_names_streaming_as_a_cause(app: Path) -> None:
+    deliver(app, status="skipped", reason="no_spans")
+    _, report = check(app, last=True, now=NOW)
+    assert "inside the generator" in report["last"]["fix"]
 
 
 def test_a_result_from_another_sdk_version_is_not_read(app: Path) -> None:

@@ -3,11 +3,11 @@
 [![PyPI](https://img.shields.io/pypi/v/emet-sdk)](https://pypi.org/project/emet-sdk/)
 [![Python](https://img.shields.io/pypi/pyversions/emet-sdk)](https://pypi.org/project/emet-sdk/)
 [![CI](https://github.com/FUSEis/emet-py/actions/workflows/ci.yml/badge.svg)](https://github.com/FUSEis/emet-py/actions/workflows/ci.yml)
-[![License](https://img.shields.io/pypi/l/emet-sdk)](LICENSE)
+[![License](https://img.shields.io/pypi/l/emet-sdk)](https://github.com/FUSEis/emet-py/blob/main/LICENSE)
 
 [Emet](https://emet.so) checks the claims an AI agent makes against the evidence behind them: the tool results and data the agent actually received. `emet-sdk` sends your agent's turns to Emet from the OpenTelemetry GenAI spans your framework already emits. There is no second instrumentation to maintain.
 
-> Early release. The API may change before 1.0; every change is in the [changelog](CHANGELOG.md).
+> Early release. The API may change before 1.0; every change is in the [changelog](https://github.com/FUSEis/emet-py/blob/main/CHANGELOG.md).
 
 ## Quick start
 
@@ -40,16 +40,36 @@ async def chat(body: ChatIn, user=Depends(current_user)):
 
 Set `EMET_APPLICATION_KEY` in the app's environment. In production that is your host's secret settings; locally, load your `.env` the way your app already does, for example with `uvicorn --env-file .env` or `python-dotenv`. Without the key, the app logs "Emet is off" once and runs as before.
 
-[`emet-cli`](cli/README.md) can do this setup with your coding agent, and tells you whether a turn reached Emet whole.
+`write_delivery_file` saves each turn's result for `emet-cli check --last`, and writes only when its folder exists. `emet-cli login` creates `.emet/` and adds it to `.gitignore`; if you are not using the CLI, run `mkdir .emet` locally and ignore it yourself. A deployed app without the folder writes nothing.
+
+### Streaming
+
+Spans are collected only while `turn()` is open, and a streaming response runs after your route returns. Open `turn()` inside the generator:
+
+```python
+@app.post("/chat/stream")
+async def chat_stream(body: ChatIn, user=Depends(current_user)):
+    thread = await threads.get_for_user(user, body.thread_id)
+
+    async def answer():
+        with emet_sdk.turn(tenant_ref=user.team_external_id, conversation_id=thread.id, user=user.email):
+            async with agent.run_stream(body.message) as result:
+                async for text in result.stream_text(delta=True):
+                    yield text
+
+    return StreamingResponse(answer())
+```
+
+[`emet-cli`](https://github.com/FUSEis/emet-py/blob/main/cli/README.md) can do this setup with your coding agent, and tells you whether a turn reached Emet whole.
 
 ## How it works
 
 - **Adds, never replaces.** `configure()` adds one span processor to your app's `TracerProvider`, and creates a provider only when the app has none. Logfire, Datadog or any other exporter keeps receiving the same spans, with the same sampling.
 - **Opt in per turn.** Only spans that start inside `turn()` are sent. Other agents, HTTP calls and database queries are not.
 - **Nothing written onto your spans.** The tenant, conversation and user stay inside the SDK. They never reach your other exporters, and never travel to downstream services as baggage.
-- **Never in your way.** Turns are built and sent on a background thread, and the SDK never raises into your app.
+- **Never in your way.** Turns are built and sent on a background thread, and nothing that goes wrong while tracing or sending raises into your app.
 
-[DESIGN.md](DESIGN.md) has the details: how a turn is collected, built into Emet's envelope, split and sent.
+[DESIGN.md](https://github.com/FUSEis/emet-py/blob/main/DESIGN.md) has the details: how a turn is collected, built into Emet's envelope, split and sent.
 
 ## What is sent, and what never leaves
 
@@ -67,10 +87,10 @@ The user you pass to `turn()`, usually their email, is stored on the trace so Em
 
 | | |
 | --- | --- |
-| `configure(*, service_name=None, on_delivery=None, endpoint=None)` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address; without one, the SDK uses `EMET_ENDPOINT`, then production. |
-| `turn(tenant_ref, conversation_id, user=None)` | A context manager or decorator, sync or async, around one turn of your agent. `tenant_ref` is the External ID of the Team in Emet; `conversation_id` is your app's own thread id; `user` is who asked. |
+| `configure(*, service_name=None, on_delivery=None, endpoint=None)` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address, and any other value raises `ValueError` at startup; without one, the SDK uses `EMET_ENDPOINT`, then production. A tracer provider that cannot take a span processor turns Emet off, with one log line. |
+| `turn(tenant_ref, conversation_id, user=None)` | A context manager or decorator, sync or async, around one turn of your agent. `tenant_ref` is the External ID of the Team in Emet; `conversation_id` is your app's own thread id; `user` is who asked. An empty `tenant_ref` or `conversation_id` never raises: the agent runs as usual and the turn is reported as skipped. |
 | `flush(timeout=10.0) -> bool` | Waits until every finished turn is sent; returns False when the timeout ran out first. Call it before a short-lived process exits. The SDK also flushes for up to 5 seconds at exit. |
-| `write_delivery_file(path)` | An `on_delivery` callback that saves the latest result to a file, for `emet-cli check --last`. Its folder must exist. |
+| `write_delivery_file(path)` | An `on_delivery` callback that saves the latest result to a file, for `emet-cli check --last`. Its folder must exist; it is never created for you. |
 | `EMET_APPLICATION_KEY` | The key, read from the environment when `configure()` runs. |
 | `EMET_ENDPOINT` | A localhost address to send to instead of production, for testing against Emet on your machine. `emet-cli login --endpoint` sets it. A value outside production and localhost turns Emet off, with one log line. |
 
@@ -82,14 +102,13 @@ The user you pass to `turn()`, usually their email, is stored on the trace so Em
 | --- | --- |
 | Python | 3.10 to 3.14 |
 | OpenTelemetry SDK | 1.27 or later |
-| Pydantic AI | 2.63 tested in CI, on Python 3.11 or later |
-
-Google ADK is planned. A TypeScript SDK will follow the same design.
+| Pydantic AI | 2.63 and the newest release, tested in CI, on Python 3.11 or later |
+| Logfire | The newest release, tested in CI |
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development and releases, and [SECURITY.md](SECURITY.md) to report a vulnerability privately. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+See [CONTRIBUTING.md](https://github.com/FUSEis/emet-py/blob/main/CONTRIBUTING.md) for development and releases, and [SECURITY.md](https://github.com/FUSEis/emet-py/blob/main/SECURITY.md) to report a vulnerability privately. Everyone taking part follows the [Code of Conduct](https://github.com/FUSEis/emet-py/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
-[Apache-2.0](LICENSE)
+[Apache-2.0](https://github.com/FUSEis/emet-py/blob/main/LICENSE)

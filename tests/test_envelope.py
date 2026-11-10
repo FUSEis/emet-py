@@ -206,6 +206,11 @@ def test_an_overlong_tenant_ref_skips_the_turn() -> None:
         build_envelope(turn_of(span(1, None, "chat", op("chat")), tenant_ref="x" * 256))
 
 
+def test_a_turn_without_a_tenant_is_skipped() -> None:
+    with pytest.raises(TurnSkipped, match="missing_turn_value"):
+        build_envelope(turn_of(span(1, None, "chat", op("chat")), tenant_ref=""))
+
+
 def test_a_bare_model_call_keeps_its_payload_under_a_turn_of_its_own() -> None:
     output = json.dumps([{"role": "assistant", "parts": [{"type": "text", "content": "Hi"}]}])
     envelope = build_envelope(turn_of(span(1, None, "chat", op("chat", **{"gen_ai.output.messages": output}))))
