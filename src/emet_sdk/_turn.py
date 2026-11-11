@@ -10,6 +10,7 @@ from contextvars import Token
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Protocol, TypeVar, cast
+from uuid import UUID
 
 from opentelemetry import context as otel_context
 
@@ -37,8 +38,18 @@ def current_turn(ctx: otel_context.Context | None = None) -> TurnInfo | None:
     return value if isinstance(value, TurnInfo) else None
 
 
+# An id from the app's own database may be an integer or a UUID
+Id = str | int | UUID
+
+
 def _text(value: object) -> str:
-    return value.strip() if isinstance(value, str) else ""
+    # An integer or UUID id is a real id; only None and blank text count as missing
+    if value is None:
+        return ""
+    try:
+        return str(value).strip()
+    except Exception:  # noqa: BLE001  (never raise into the app)
+        return ""
 
 
 class turn:
@@ -49,7 +60,7 @@ class turn:
     runs as usual and the turn is reported as skipped.
     """
 
-    def __init__(self, tenant_ref: str, conversation_id: str, user: str | None = None) -> None:
+    def __init__(self, tenant_ref: Id, conversation_id: Id, user: Id | None = None) -> None:
         self._values = (_text(tenant_ref), _text(conversation_id), _text(user) or None)
         self._entered: list[tuple[TurnInfo, Token[otel_context.Context]]] = []
 

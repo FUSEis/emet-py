@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 import pytest
 
@@ -43,21 +44,36 @@ def test_a_blank_user_is_none(harness: Harness) -> None:
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "tenant_ref", "conversation_id"),
+    ("kwargs", "expected"),
     [
-        ({"tenant_ref": " ", "conversation_id": "c"}, "", "c"),
-        ({"tenant_ref": None, "conversation_id": "c"}, "", "c"),
-        ({"tenant_ref": "t", "conversation_id": ""}, "t", ""),
-        ({"tenant_ref": "t", "conversation_id": "c", "user": 7}, "t", "c"),
+        ({"tenant_ref": " ", "conversation_id": "c"}, ("", "c", None)),
+        ({"tenant_ref": None, "conversation_id": "c"}, ("", "c", None)),
+        ({"tenant_ref": "t", "conversation_id": ""}, ("t", "", None)),
+        ({"tenant_ref": "t", "conversation_id": "c", "user": "  "}, ("t", "c", None)),
+        ({"tenant_ref": "t", "conversation_id": 42}, ("t", "42", None)),
+        (
+            {"tenant_ref": "t", "conversation_id": UUID("12345678-1234-5678-1234-567812345678"), "user": 7},
+            ("t", "12345678-1234-5678-1234-567812345678", "7"),
+        ),
     ],
 )
-def test_a_bad_value_never_raises_into_the_app(
-    harness: Harness, kwargs: dict[str, object], tenant_ref: str, conversation_id: str
+def test_turn_values_never_raise_into_the_app(
+    harness: Harness, kwargs: dict[str, object], expected: tuple[str, str, str | None]
 ) -> None:
     with emet_sdk.turn(**kwargs), harness.tracer.start_as_current_span("chat"):  # pyright: ignore[reportArgumentType]
         pass
     info = harness.turns[0].info
-    assert (info.tenant_ref, info.conversation_id, info.user) == (tenant_ref, conversation_id, None)
+    assert (info.tenant_ref, info.conversation_id, info.user) == expected
+
+
+def test_a_value_that_cannot_become_text_is_skipped_not_raised(harness: Harness) -> None:
+    class Unprintable:
+        def __str__(self) -> str:
+            raise ValueError("no")
+
+    with emet_sdk.turn("t", Unprintable()), harness.tracer.start_as_current_span("chat"):  # pyright: ignore[reportArgumentType]
+        pass
+    assert harness.turns[0].info.conversation_id == ""
 
 
 def test_the_processor_never_writes_attributes(harness: Harness) -> None:
