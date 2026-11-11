@@ -66,6 +66,16 @@ def test_turn_values_never_raise_into_the_app(
     assert (info.tenant_ref, info.conversation_id, info.user) == expected
 
 
+def test_a_value_that_cannot_become_text_is_skipped_not_raised(harness: Harness) -> None:
+    class Unprintable:
+        def __str__(self) -> str:
+            raise ValueError("no")
+
+    with emet_sdk.turn("t", Unprintable()), harness.tracer.start_as_current_span("chat"):  # pyright: ignore[reportArgumentType]
+        pass
+    assert harness.turns[0].info.conversation_id == ""
+
+
 def test_the_processor_never_writes_attributes(harness: Harness) -> None:
     with (
         emet_sdk.turn("team_editorial", "thread-1", user="ada@acme.example"),
