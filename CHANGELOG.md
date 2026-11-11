@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `turn()` converts an integer or UUID `tenant_ref`, `conversation_id` or `user` with `str()`. 0.1.3 treated any value that was not a string as empty and skipped the turn, so an app passing `thread.id` from its database sent nothing.
+
 ## [0.1.3] - 2026-11-10
 
 ### Fixed

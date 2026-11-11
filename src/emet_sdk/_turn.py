@@ -38,7 +38,8 @@ def current_turn(ctx: otel_context.Context | None = None) -> TurnInfo | None:
 
 
 def _text(value: object) -> str:
-    return value.strip() if isinstance(value, str) else ""
+    # An integer or UUID id is a real id; only None and blank text count as missing
+    return "" if value is None else str(value).strip()
 
 
 class turn:
