@@ -43,8 +43,8 @@ SKIPPED = {
         f"{INSTRUMENT} If the agent streams, open turn() inside the generator that runs the stream.",
     ),
     "missing_turn_value": (
-        "tenant_ref or conversation_id was empty.",
-        "Pass the Team's External ID and your app's thread id, from your server's own auth and storage.",
+        "tenant_ref or conversation_id was empty, or not a string, integer or UUID.",
+        "Pass the Team's External ID and your thread id, such as thread.id, from your server's own auth and storage.",
     ),
     "no_genai_spans": ("turn() ran, but no AI framework call happened inside it.", INSTRUMENT),
     "tenant_ref_too_long": ("tenant_ref was over 255 characters.", "Pass the Team's External ID as tenant_ref."),

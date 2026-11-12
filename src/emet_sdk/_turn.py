@@ -43,13 +43,18 @@ Id = str | int | UUID
 
 
 def _text(value: object) -> str:
-    # An integer or UUID id is a real id; only None and blank text count as missing
-    if value is None:
-        return ""
+    # Only the types Id names; any other object, such as a whole model, counts as missing so the turn is skipped
     try:
-        return str(value).strip()
-    except Exception:  # noqa: BLE001  (never raise into the app)
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, int) and not isinstance(value, bool):
+            # int() first: an IntEnum's str() is its name on Python 3.10
+            return str(int(value))
+        if isinstance(value, UUID):
+            return str(value)
+    except Exception:  # noqa: BLE001  (an integer past Python's digit limit, or a subclass that raises)
         return ""
+    return ""
 
 
 class turn:
