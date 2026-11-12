@@ -44,13 +44,16 @@ Id = str | int | UUID
 
 def _text(value: object) -> str:
     # Only the types Id names; any other object, such as a whole model, counts as missing so the turn is skipped
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, UUID) or (isinstance(value, int) and not isinstance(value, bool)):
-        try:
+    try:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, int) and not isinstance(value, bool):
+            # int() first: an IntEnum's str() is its name on Python 3.10
+            return str(int(value))
+        if isinstance(value, UUID):
             return str(value)
-        except ValueError:  # an integer past Python's digit limit
-            return ""
+    except Exception:  # noqa: BLE001  (an integer past Python's digit limit, or a subclass that raises)
+        return ""
     return ""
 
 

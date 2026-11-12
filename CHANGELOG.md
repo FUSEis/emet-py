@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - `turn()` accepts an integer or UUID `tenant_ref`, `conversation_id` or `user`, in its type hints and at runtime. 0.1.3 treated any value that was not a string as empty and skipped the turn, so an app passing `thread.id` from its database sent nothing.
-- Any other type, such as a whole model object, `True`, bytes or an integer past Python's digit limit, still counts as missing: the turn is skipped as `missing_turn_value` and never sent under a made-up id.
+- Any other type, such as a whole model object, `True`, bytes or an integer past Python's digit limit, still counts as missing: the turn is skipped as `missing_turn_value` and never sent under a made-up id. A `user` of another type is left out, and the turn is still sent.
+- An `IntEnum` id is sent as its number, on every Python version.
 
 ## [0.1.3] - 2026-11-10
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import sys
+from enum import IntEnum
 from uuid import UUID
 
 import pytest
@@ -73,14 +75,35 @@ class Thread:
 
 @pytest.mark.parametrize(
     "value",
-    [Thread(), True, b"thread-1", 1.5, 10**5000],
-    ids=["model object", "bool", "bytes", "float", "past the digit limit"],
+    [Thread(), True, b"thread-1", 1.5],
+    ids=["model object", "bool", "bytes", "float"],
 )
 def test_a_value_of_another_type_is_skipped_not_sent(harness: Harness, value: object) -> None:
     with emet_sdk.turn(value, value), harness.tracer.start_as_current_span("chat"):  # pyright: ignore[reportArgumentType]
         pass
     info = harness.turns[0].info
     assert (info.tenant_ref, info.conversation_id) == ("", "")
+
+
+@pytest.mark.skipif(not hasattr(sys, "set_int_max_str_digits"), reason="no digit limit in this Python")
+def test_an_integer_past_the_digit_limit_is_skipped_not_raised(harness: Harness) -> None:
+    previous = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    try:
+        with emet_sdk.turn("t", 10**5000), harness.tracer.start_as_current_span("chat"):
+            pass
+    finally:
+        sys.set_int_max_str_digits(previous)
+    assert harness.turns[0].info.conversation_id == ""
+
+
+def test_an_int_enum_is_sent_as_its_number(harness: Harness) -> None:
+    class Team(IntEnum):
+        EDITORIAL = 7
+
+    with emet_sdk.turn(Team.EDITORIAL, "c"), harness.tracer.start_as_current_span("chat"):
+        pass
+    assert harness.turns[0].info.tenant_ref == "7"
 
 
 def test_the_processor_never_writes_attributes(harness: Harness) -> None:
