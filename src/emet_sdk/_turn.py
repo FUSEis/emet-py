@@ -43,13 +43,15 @@ Id = str | int | UUID
 
 
 def _text(value: object) -> str:
-    # An integer or UUID id is a real id; only None and blank text count as missing
-    if value is None:
-        return ""
-    try:
-        return str(value).strip()
-    except Exception:  # noqa: BLE001  (never raise into the app)
-        return ""
+    # Only the types Id names; any other object, such as a whole model, counts as missing so the turn is skipped
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, UUID) or (isinstance(value, int) and not isinstance(value, bool)):
+        try:
+            return str(value)
+        except ValueError:  # an integer past Python's digit limit
+            return ""
+    return ""
 
 
 class turn:
