@@ -20,6 +20,8 @@ TURN_KEY = otel_context.create_key("emet.turn")
 F = TypeVar("F", bound=Callable[..., Any])
 
 _ids = itertools.count(1)
+# Ids of the turn() blocks still open. Context cannot tell: a task or thread started inside a block keeps its copy
+_open: set[int] = set()
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,11 @@ def current_turn(ctx: otel_context.Context | None = None) -> TurnInfo | None:
     """Returns the turn the given context, or the current one, belongs to."""
     value = otel_context.get_value(TURN_KEY, ctx)
     return value if isinstance(value, TurnInfo) else None
+
+
+def is_open(info: TurnInfo) -> bool:
+    """Whether the turn's block has not closed yet, asked from any thread or task."""
+    return info.id in _open
 
 
 # An id from the app's own database may be an integer or a UUID
@@ -74,6 +81,7 @@ class turn:
         self._entered.append((info, otel_context.attach(otel_context.set_value(TURN_KEY, info))))
         for listener in _listeners:
             listener.turn_opened(info)
+        _open.add(info.id)
         return info
 
     def __exit__(
@@ -83,6 +91,7 @@ class turn:
         tb: TracebackType | None,
     ) -> None:
         info, token = self._entered.pop()
+        _open.discard(info.id)
         otel_context.detach(token)
         for listener in _listeners:
             listener.turn_closed(info)

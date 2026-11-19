@@ -8,6 +8,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable
+from uuid import UUID
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -17,7 +18,9 @@ from emet_sdk._delivery import DeliveryResult, captured, new_result
 from emet_sdk._envelope import TurnSkipped, build_envelope
 from emet_sdk._processor import CapturedTurn, EmetSpanProcessor
 from emet_sdk._redact import Scrubber
+from emet_sdk._report import ReportResult, Reports
 from emet_sdk._transport import DEFAULT_ENDPOINT, ENDPOINT_VARIABLE, Sender, resolve_endpoint
+from emet_sdk._turn import TurnInfo
 from emet_sdk._worker import Worker
 
 logger = logging.getLogger("emet_sdk")
@@ -29,6 +32,7 @@ EXIT_FLUSH_SECONDS = 5.0
 _lock = threading.Lock()
 _processor: EmetSpanProcessor | None = None
 _worker: Worker | None = None
+_reports: Reports | None = None
 _said_off = False
 _said_bad_endpoint = False
 _said_bad_provider = False
@@ -38,12 +42,14 @@ class _Pipeline:
     def __init__(
         self,
         sender: Sender,
+        reports: Reports,
         endpoint: str,
         key: str,
         service_name: str | None,
         on_delivery: Callable[[DeliveryResult], None] | None,
     ) -> None:
         self._sender = sender
+        self._reports = reports
         self._endpoint = endpoint
         self._secrets = (key,)
         self._service_name = service_name
@@ -51,6 +57,15 @@ class _Pipeline:
         self._last_outcome: tuple[object, ...] | None = None
 
     def handle(self, turn: CapturedTurn) -> DeliveryResult:
+        result: DeliveryResult | None = None
+        try:
+            result = self._send(turn)
+            return result
+        finally:
+            # Also when sending raised, so report() is not left waiting for this turn
+            self._reports.record(turn.info.id, result)
+
+    def _send(self, turn: CapturedTurn) -> DeliveryResult:
         try:
             envelope = build_envelope(turn, self._secrets)
         except TurnSkipped as skipped:
@@ -110,7 +125,7 @@ def configure(
     service_name names the app in Emet. on_delivery receives each turn's delivery result on Emet's own thread.
     endpoint is for testing against Emet on this machine; without it, EMET_ENDPOINT is used, then production.
     """
-    global _processor, _worker, _said_off, _said_bad_endpoint, _said_bad_provider
+    global _processor, _worker, _reports, _said_off, _said_bad_endpoint, _said_bad_provider
     # An explicit bad endpoint raises here, before anything is installed
     origin, source = resolve_endpoint(endpoint, None) if endpoint is not None else (DEFAULT_ENDPOINT, "")
     with _lock:
@@ -150,16 +165,24 @@ def configure(
                     type(provider).__name__,
                 )
             return
-        pipeline = _Pipeline(Sender(origin, key), origin, key, service_name, on_delivery)
+        reports = Reports(origin, key)
+        pipeline = _Pipeline(Sender(origin, key), reports, origin, key, service_name, on_delivery)
         worker = Worker(pipeline.handle, pipeline.deliver)
-        processor = EmetSpanProcessor(worker.submit)
+
+        def submit(turn: CapturedTurn) -> None:
+            dropped = worker.submit(turn)
+            if dropped:
+                # On record, so report() does not wait for a turn that will never be sent
+                reports.record(turn.info.id, new_result("skipped", dropped))
+
+        processor = EmetSpanProcessor(submit)
         try:
             add_span_processor(processor)
         except Exception:
             logger.exception("Emet is off: the app's tracer provider refused its span processor")
             return
         _turn._listeners.append(processor)  # pyright: ignore[reportPrivateUsage]
-        _processor, _worker = processor, worker
+        _processor, _worker, _reports = processor, worker, reports
         if origin != DEFAULT_ENDPOINT:
             # A local endpoint left in a deployed app would lose every turn as unreachable
             logger.warning(
@@ -176,3 +199,41 @@ def flush(timeout: float = 10.0) -> bool:
     """
     worker = _worker
     return True if worker is None else worker.flush(timeout)
+
+
+def report(turn: TurnInfo | str | UUID, *, timeout: float) -> ReportResult:
+    """Waits up to timeout seconds for Emet's report on a turn and returns it, or the reason there is none.
+
+    turn is what the turn() block gave (`with emet_sdk.turn(...) as sent`), asked after the block has closed, or
+    the trace id from a delivery result. Emet says when to ask again while it is still checking. A timeout of 0
+    never waits: it asks once about a trace id, and answers not_ready for a turn that is still being sent. No
+    request starts once the timeout has passed; one started with under a second left gets one second. Never
+    raises: a network or server error is a result too. Check result.flagged, and read result.document for the
+    answer and its claims. Call areport() from async code, since this one blocks.
+    """
+    try:
+        reports = _readable()
+        return reports if isinstance(reports, ReportResult) else reports.read(turn, timeout)
+    except Exception:  # never raise into the app
+        logger.exception("Emet failed to read a report")
+        return ReportResult("unavailable", "sdk_error")
+
+
+async def areport(turn: TurnInfo | str | UUID, *, timeout: float) -> ReportResult:
+    """report() for async code: the same result, without blocking the event loop."""
+    try:
+        reports = _readable()
+        return reports if isinstance(reports, ReportResult) else await reports.aread(turn, timeout)
+    except Exception:  # never raise into the app
+        logger.exception("Emet failed to read a report")
+        return ReportResult("unavailable", "sdk_error")
+
+
+def _readable() -> Reports | ReportResult:
+    reports, worker = _reports, _worker
+    if reports is None or worker is None:
+        return ReportResult("not_sent", "emet_off")
+    if worker.on_own_thread():
+        # Called from on_delivery: waiting here would hold up every turn still to be sent
+        return ReportResult("unavailable", "sdk_thread")
+    return reports

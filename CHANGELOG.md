@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `report()` and `areport()` read Emet's report on a turn back into your app. Keep what the block gives you, `with emet_sdk.turn(...) as sent`, and call `emet_sdk.report(sent, timeout=30)` once the block has closed, or pass the `trace` of a delivery result. The call waits as long as Emet asks between reads and stops at your timeout. A timeout of 0 never waits, so use it with a trace id and give a turn you just sent a few seconds.
+- The result is a `ReportResult`. `flagged` says whether Emet disputed a claim, and `document` is the report as Emet returned it: the answer, its status, and every claim with its verdict and where it sits in the answer. Without a report, `status` says why: `not_ready`, `not_assessed`, `failed`, `not_found`, `refused`, `rate_limited`, `not_sent` or `unavailable`.
+- Reading a report never raises into your app. A network or server error is a result like any other.
+
 ### Fixed
 
 - `turn()` accepts an integer or UUID `tenant_ref`, `conversation_id` or `user`, in its type hints and at runtime. 0.1.3 treated any value that was not a string as empty and skipped the turn, so an app passing `thread.id` from its database sent nothing.

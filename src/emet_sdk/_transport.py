@@ -40,6 +40,7 @@ class Reply:
 
 
 Post = Callable[[str, dict[str, str], bytes, float], Reply]
+Get = Callable[[str, dict[str, str], float], Reply]
 
 
 def check_endpoint(url: str) -> str:
@@ -101,7 +102,14 @@ _opener = urllib.request.build_opener(_NoRedirect())
 
 def urllib_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> Reply:
     # check_endpoint has limited url to https://app.emet.so or localhost
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310
+    return _open(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout)  # noqa: S310
+
+
+def urllib_get(url: str, headers: dict[str, str], timeout: float) -> Reply:
+    return _open(urllib.request.Request(url, headers=headers, method="GET"), timeout)  # noqa: S310
+
+
+def _open(request: urllib.request.Request, timeout: float) -> Reply:
     try:
         with _opener.open(request, timeout=timeout) as response:
             return Reply(response.status, dict(response.headers.items()), response.read())
@@ -233,19 +241,32 @@ def _dict(value: Any) -> dict[str, Any]:
 
 
 def _retry_after(headers: dict[str, str]) -> float:
-    value = next((v for k, v in headers.items() if k.lower() == "retry-after"), "")
+    value = retry_after_header(headers)
     if not value:
         return 1.0
+    seconds = retry_after_seconds(value)
+    # A wait that cannot be read is not retried
+    return MAX_RETRY_AFTER + 1 if seconds is None else seconds
+
+
+def retry_after_header(headers: dict[str, str]) -> str:
+    return next((v for k, v in headers.items() if k.lower() == "retry-after"), "").strip()
+
+
+def retry_after_seconds(value: str) -> float | None:
+    """Returns the wait a Retry-After value names, given as seconds or as an HTTP date. None when it is neither."""
     try:
-        return max(0.0, float(value))
+        seconds = float(value)
     except ValueError:
         pass
+    else:
+        return max(0.0, seconds) if seconds == seconds else None  # NaN is no wait
     try:
         when = email.utils.parsedate_to_datetime(value)
     except (TypeError, ValueError):
-        return MAX_RETRY_AFTER + 1
+        return None
     if when.tzinfo is None:
-        return MAX_RETRY_AFTER + 1
+        return None
     return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
