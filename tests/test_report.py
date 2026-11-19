@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import email.utils
 import http.client
 import json
 import logging
+import threading
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -131,7 +135,8 @@ def test_a_finished_report_comes_back_as_emet_sent_it() -> None:
     assert emet.slept == []
 
 
-@pytest.mark.parametrize("status", ["clarified", "clear", "unchecked", "nothing"])
+# The last one is a status this SDK has never heard of: Emet may add one
+@pytest.mark.parametrize("status", ["clarified", "clear", "unchecked", "nothing", "added_later"])
 def test_only_a_flagged_report_reads_flagged(status: str) -> None:
     result = FakeEmet([ready(status)]).reports().read(TRACE, 30)
     assert (result.status, result.flagged) == ("ready", False)
@@ -153,12 +158,34 @@ def test_it_waits_as_long_as_emet_asks_then_returns_the_report() -> None:
 
 @pytest.mark.parametrize(
     ("header", "waited"),
-    [(None, 5.0), ("soon", 5.0), ("nan", 5.0), ("0", 1.0), ("-3", 1.0), ("2.5", 2.5)],
+    [
+        (None, 5.0),
+        ("soon", 5.0),
+        ("nan", 5.0),
+        ("0", 1.0),
+        ("-3", 1.0),
+        ("2.5", 2.5),
+        # A date without a zone names no moment
+        ("Wed, 21 Oct 2015 07:28:00 -0000", 5.0),
+    ],
 )
 def test_an_odd_retry_after_still_gives_a_sane_wait(header: str | None, waited: float) -> None:
     emet = FakeEmet([pending(header), ready()])
     assert emet.reports().read(TRACE, 60).status == "ready"
     assert emet.slept == [waited]
+
+
+def test_a_retry_after_given_as_a_date_is_waited_for() -> None:
+    later = email.utils.format_datetime(datetime.now(timezone.utc) + timedelta(seconds=30), usegmt=True)
+    emet = FakeEmet([pending(later), ready()])
+    assert emet.reports().read(TRACE, 60).status == "ready"
+    assert 25 < emet.slept[0] <= 30
+
+
+def test_a_retry_after_date_already_past_waits_the_least() -> None:
+    emet = FakeEmet([pending("Wed, 21 Oct 2015 07:28:00 GMT"), ready()])
+    assert emet.reports().read(TRACE, 60).status == "ready"
+    assert emet.slept == [1.0]
 
 
 def test_the_retry_after_header_is_read_in_any_case() -> None:
@@ -200,6 +227,12 @@ def test_no_budget_asks_once(timeout: float) -> None:
         (Reply(200, {}, b"not json"), "unavailable", "unexpected_response"),
         (Reply(200, {}, b"[1, 2]"), "unavailable", "unexpected_response"),
         (Reply(200, {}, b"\xff"), "unavailable", "unexpected_response"),
+        # A 200 that is no report, such as a proxy's own page, must not read as a clear turn
+        (Reply(200, {}, b'{"ok": true}'), "unavailable", "unexpected_response"),
+        (Reply(200, {}, b'{"status": "pending"}'), "unavailable", "unexpected_response"),
+        (Reply(200, {}, b'{"report": "flagged"}'), "unavailable", "unexpected_response"),
+        (Reply(200, {}, b'{"report": {"status": 3}}'), "unavailable", "unexpected_response"),
+        (Reply(200, {}, b'{"report": {"status": ""}}'), "unavailable", "unexpected_response"),
     ],
 )
 def test_every_other_answer_is_a_plain_result(reply: Reply, status: str, reason: str) -> None:
@@ -250,6 +283,22 @@ def test_a_request_never_gets_more_time_than_the_budget_has_left() -> None:
     emet = FakeEmet([pending("5"), ready()])
     emet.reports().read(TRACE, 7)
     assert emet.timeouts == [7.0, 2.0]
+
+
+@pytest.mark.parametrize(("budget", "timeouts"), [(5, [5.0]), (5.5, [5.5]), (6, [6.0, 1.0])])
+def test_no_request_starts_with_under_a_second_of_budget_left(budget: float, timeouts: list[float]) -> None:
+    emet = FakeEmet([pending("5")])
+    result = emet.reports().read(TRACE, budget)
+    assert (result.status, result.trace) == ("not_ready", TRACE)
+    # A wait that would leave the next request less than a second is not started
+    assert emet.timeouts == timeouts
+    assert emet.now <= budget
+
+
+def test_a_budget_under_a_second_still_asks_once_and_gives_the_request_a_second() -> None:
+    emet = FakeEmet([ready()])
+    assert emet.reports().read(TRACE, 0.2).status == "ready"
+    assert emet.timeouts == [1.0]
 
 
 @pytest.mark.parametrize("trace", [TRACE.upper(), f"  {TRACE} ", TRACE.replace("-", ""), UUID(TRACE)])
@@ -308,7 +357,38 @@ def test_a_turn_never_sent_in_time_is_not_ready() -> None:
     result = emet.reports().read(TurnInfo(7, "team", "thread-1", None), 0.2)
     assert (result.status, result.reason, result.trace) == ("not_ready", "still_sending", "")
     assert emet.urls == []
-    assert emet.now <= 0.2
+    assert emet.now == pytest.approx(0.2)
+
+
+def test_a_last_wait_shorter_than_the_poll_still_finds_the_turn() -> None:
+    emet = FakeEmet([ready()])
+    reports = emet.reports()
+    real_sleep = emet.sleep
+
+    def sleep(seconds: float) -> None:
+        real_sleep(seconds)
+        if len(emet.slept) == 2:
+            reports.record(7, sent())
+
+    reports._sleep = sleep
+    result = reports.read(TurnInfo(7, "team", "thread-1", None), 0.08)
+    assert emet.slept == [0.05, pytest.approx(0.03)]
+    # The budget is spent, so nothing is asked, but the caller gets the trace to ask about later
+    assert (result.status, result.reason, result.trace, emet.urls) == ("not_ready", "", TRACE, [])
+
+
+def test_a_turn_sent_with_budget_left_is_asked_about() -> None:
+    emet = FakeEmet([ready()])
+    reports = emet.reports()
+    real_sleep = emet.sleep
+
+    def sleep(seconds: float) -> None:
+        real_sleep(seconds)
+        reports.record(7, sent())
+
+    reports._sleep = sleep
+    assert reports.read(TurnInfo(7, "team", "thread-1", None), 0.08).status == "ready"
+    assert emet.slept == [0.05]
 
 
 @pytest.mark.parametrize(
@@ -342,6 +422,45 @@ def test_asking_inside_the_turn_block_answers_at_once() -> None:
     with emet_sdk.turn("team", "thread-1") as turn:
         result = reports.read(turn, 30)
     assert (result.status, result.reason, emet.slept, emet.urls) == ("not_sent", "turn_still_open", [], [])
+
+
+def test_an_open_block_is_seen_from_another_thread() -> None:
+    emet = FakeEmet([ready()])
+    reports = emet.reports()
+    results: list[ReportResult] = []
+    with emet_sdk.turn("team", "thread-1") as turn:
+        # A new thread starts with an empty context, so the block is not found there
+        thread = threading.Thread(target=lambda: results.append(reports.read(turn, 30)))
+        thread.start()
+        thread.join()
+    assert [(r.status, r.reason) for r in results] == [("not_sent", "turn_still_open")]
+    assert emet.slept == []
+
+
+async def test_a_task_started_inside_a_block_does_not_see_it_open_after_it_closed() -> None:
+    emet = FakeEmet([ready()])
+    reports = emet.reports()
+    closed = asyncio.Event()
+
+    async def ask_later(turn: TurnInfo) -> ReportResult:
+        await closed.wait()
+        return await reports.aread(turn, 0)
+
+    with emet_sdk.turn("team", "thread-1") as turn:
+        # The task keeps a copy of the context, in which the turn is still current
+        task = asyncio.create_task(ask_later(turn))
+    closed.set()
+    result = await task
+    assert (result.status, result.reason) == ("not_ready", "still_sending")
+    reports.record(turn.id, sent())
+    assert (await asyncio.create_task(reports.aread(turn, 0))).status == "ready"
+
+
+def test_a_block_that_raised_is_closed_too() -> None:
+    reports = FakeEmet([ready()]).reports()
+    with pytest.raises(RuntimeError), emet_sdk.turn("team", "thread-1") as turn:
+        raise RuntimeError("boom")
+    assert reports.read(turn, 0).reason == "still_sending"
 
 
 def test_only_the_latest_turns_are_remembered(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -419,3 +538,30 @@ async def test_the_async_read_sees_a_turn_block_that_is_still_open() -> None:
     with emet_sdk.turn("team", "thread-1") as turn:
         result = await reports.aread(turn, 30)
     assert (result.status, result.reason, emet.slept) == ("not_sent", "turn_still_open", [])
+
+
+async def test_the_async_budget_starts_before_a_thread_is_free(monkeypatch: pytest.MonkeyPatch) -> None:
+    emet = FakeEmet([ready()])
+    to_thread = asyncio.to_thread
+
+    async def busy_executor(func: Callable[..., Any], *args: Any) -> Any:
+        # Every thread is taken for 10 seconds before the read gets one
+        emet.now += 10
+        return await to_thread(func, *args)
+
+    monkeypatch.setattr(asyncio, "to_thread", busy_executor)
+    result = await emet.reports().aread(TRACE, 5)
+    assert (result.status, result.trace, emet.urls) == ("not_ready", TRACE, [])
+
+
+async def test_the_async_read_without_a_budget_still_asks_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    emet = FakeEmet([ready()])
+    to_thread = asyncio.to_thread
+
+    async def busy_executor(func: Callable[..., Any], *args: Any) -> Any:
+        emet.now += 10
+        return await to_thread(func, *args)
+
+    monkeypatch.setattr(asyncio, "to_thread", busy_executor)
+    assert (await emet.reports().aread(TRACE, 0)).status == "ready"
+    assert len(emet.urls) == 1

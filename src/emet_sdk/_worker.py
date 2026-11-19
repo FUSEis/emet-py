@@ -36,22 +36,24 @@ class Worker:
         self._pending = 0
         self._thread: threading.Thread | None = None
 
-    def submit(self, captured: CapturedTurn) -> None:
+    def submit(self, captured: CapturedTurn) -> str:
+        """Queues a turn. Returns why it was dropped instead, or "" when it was queued."""
         with self._cond:
             if len(self._queue) >= MAX_QUEUED_TURNS:
                 logger.warning("Emet dropped a turn: %d turns are already waiting to be sent", MAX_QUEUED_TURNS)
-                return
+                return "queue_full"
             if self._thread is None:
                 thread = threading.Thread(target=self._run, name="emet-sdk", daemon=True)
                 try:
                     thread.start()
                 except RuntimeError:  # the interpreter is shutting down
                     logger.warning("Emet dropped a turn that finished while the app was exiting")
-                    return
+                    return "app_exiting"
                 self._thread = thread
             self._queue.append(captured)
             self._pending += 1
             self._cond.notify()
+        return ""
 
     def on_own_thread(self) -> bool:
         return threading.current_thread() is self._thread

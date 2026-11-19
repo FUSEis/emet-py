@@ -75,18 +75,20 @@ if report.flagged:
 return result.output
 ```
 
-The call waits until the turn is sent, then asks Emet, waiting as long as Emet says between asks. It stops at `timeout` seconds; `timeout=0` asks once. It never raises: every outcome, a network error included, is a result with a `status`.
+The call waits until the turn is sent, then asks Emet, waiting as long as Emet says between asks. It stops at `timeout` seconds and starts no request after that. A request that starts with less than a second left is given one second, so a call can return up to a second late. It never raises: every outcome, a network error included, is a result with a `status`.
+
+`timeout=0` never waits. The turn is sent on the SDK's own thread, so right after the block closes the call answers `not_ready` with the reason `still_sending`, without asking Emet. Give the call a timeout of a few seconds there, and keep `timeout=0` for a trace id, where it asks once.
 
 | `status` | Meaning |
 | --- | --- |
 | `ready` | The report is in `document`. |
-| `not_ready` | Emet had not finished within your timeout. Ask again later with `report.trace`. |
+| `not_ready` | Emet had not finished within your timeout. Ask again later with `report.trace`. With the reason `still_sending` the turn had not been sent yet and there is no trace: ask again with what `turn()` gave you. |
 | `not_assessed` | Emet does not check this Application's turns automatically. |
 | `failed` | The check ended in error. |
 | `not_found` | Emet has no such trace, or this key may not read it. |
 | `refused` | Emet refused the key. |
 | `rate_limited` | The Application is over its limit of report reads. |
-| `not_sent` | The turn did not reach Emet, so there is nothing to ask about. `reason` says why, such as `no_spans` or `emet_off`. |
+| `not_sent` | The turn did not reach Emet, so there is nothing to ask about. `reason` says why, such as `no_spans`, `queue_full` or `emet_off`. |
 | `unavailable` | Emet could not be reached or answered with an error. `reason` is `timeout`, `unreachable`, `server_error` or `unexpected_response`. |
 
 `report.flagged` is true only for a finished report in which Emet disputed a claim. `report.document` is the report exactly as Emet returned it:

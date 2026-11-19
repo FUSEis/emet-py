@@ -73,8 +73,8 @@ def test_a_full_queue_drops_new_turns(monkeypatch: pytest.MonkeyPatch, caplog: p
     worker.submit(turn("busy"))
     while worker._queue:  # wait for the thread to take the first turn
         pass
-    worker.submit(turn("queued"))
-    worker.submit(turn("dropped"))
+    assert worker.submit(turn("queued")) == ""
+    assert worker.submit(turn("dropped")) == "queue_full"
     release.set()
     assert worker.flush(5)
     assert handled == ["busy", "queued"]
@@ -99,7 +99,7 @@ def test_a_turn_finishing_during_shutdown_is_dropped(
 
     monkeypatch.setattr(threading.Thread, "start", refuse)
     worker = Worker(lambda captured: new_result("sent"), lambda result: None)
-    worker.submit(turn("late"))
+    assert worker.submit(turn("late")) == "app_exiting"
     assert worker.flush(0.1)
     assert "while the app was exiting" in caplog.text
 

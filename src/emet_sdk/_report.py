@@ -18,8 +18,17 @@ from uuid import UUID
 
 from emet_sdk import _transport
 from emet_sdk._delivery import DeliveryResult
-from emet_sdk._transport import ATTEMPT_TIMEOUT, MIN_ATTEMPT, SERVER_ERROR_WAIT, Get, Reply, check_endpoint
-from emet_sdk._turn import TurnInfo, current_turn
+from emet_sdk._transport import (
+    ATTEMPT_TIMEOUT,
+    MIN_ATTEMPT,
+    SERVER_ERROR_WAIT,
+    Get,
+    Reply,
+    check_endpoint,
+    retry_after_header,
+    retry_after_seconds,
+)
+from emet_sdk._turn import TurnInfo, is_open
 from emet_sdk._version import VERSION
 
 logger = logging.getLogger("emet_sdk")
@@ -101,34 +110,44 @@ class Reports:
                 self._sent.popitem(last=False)
 
     def read(self, turn: object, timeout: float) -> ReportResult:
-        steps = self._steps(turn, timeout)
+        steps = self._steps(turn, *self._budget(timeout))
         while not isinstance(step := _advance(steps), ReportResult):
             self._sleep(step)
         return self._noted(step)
 
     async def aread(self, turn: object, timeout: float) -> ReportResult:
-        steps = self._steps(turn, timeout)
+        # The clock starts here: waiting for a free thread counts against the budget
+        steps = self._steps(turn, *self._budget(timeout))
         # Each request runs on a thread, so the event loop is never blocked
         while not isinstance(step := await asyncio.to_thread(_advance, steps), ReportResult):
             await self._async_sleep(step)
         return self._noted(step)
 
-    def _steps(self, turn: object, timeout: float) -> Generator[float, None, ReportResult]:
-        """Runs one read, yielding each wait in seconds so the caller sleeps its own way."""
+    def _budget(self, timeout: float) -> tuple[float, bool]:
+        """Returns when the read must stop, and whether it has no time to wait at all."""
         budget = float(timeout)
-        # A negative or NaN budget asks once
-        deadline = self._clock() + (budget if budget > 0 else 0.0)
+        # A negative or NaN budget is no budget
+        once = not budget > 0
+        return self._clock() + (0.0 if once else budget), once
+
+    def _steps(self, turn: object, deadline: float, once: bool) -> Generator[float, None, ReportResult]:
+        """Runs one read, yielding each wait in seconds so the caller sleeps its own way."""
         while (found := self._trace(turn)) is None:
-            if self._clock() + SENDING_POLL > deadline:
+            left = deadline - self._clock()
+            if left <= 0:
                 return ReportResult("not_ready", "still_sending")
-            yield SENDING_POLL
+            yield min(SENDING_POLL, left)
         if isinstance(found, ReportResult):
             return found
+        if not once and self._clock() >= deadline:
+            # The budget went on waiting for the send, or for a free thread. Without a budget, it still asks once
+            return ReportResult("not_ready", trace=found)
         while True:
             answer = self._ask(found, deadline)
             if isinstance(answer, ReportResult):
                 return answer
-            if self._clock() + answer > deadline:
+            # The next request needs MIN_ATTEMPT left after the wait, so it never runs past the deadline
+            if self._clock() + answer + MIN_ATTEMPT > deadline:
                 return ReportResult("not_ready", trace=found)
             yield answer
 
@@ -138,8 +157,7 @@ class Reports:
             with self._lock:
                 sent = self._sent.get(turn.id)
             if sent is None:
-                current = current_turn()
-                if current is not None and current.id == turn.id:
+                if is_open(turn):
                     # The turn is only sent once its block has closed
                     return ReportResult("not_sent", "turn_still_open")
                 return None
@@ -161,6 +179,7 @@ class Reports:
         url = self._url.format(trace=trace)
         reason = ""
         for attempt in (1, 2):
+            # Only a call's first request can have under MIN_ATTEMPT left; it gets that much, to ask at all
             timeout = max(MIN_ATTEMPT, min(ATTEMPT_TIMEOUT, deadline - self._clock()))
             wait = 0.0
             try:
@@ -208,7 +227,10 @@ def _answer(reply: Reply, trace: str) -> ReportResult | float:
     code = body.get("code")
     code = code if isinstance(code, str) else ""
     if reply.status == 200:
-        if not body:
+        report = body.get("report")
+        status = cast("dict[str, Any]", report).get("status") if isinstance(report, dict) else None
+        if not isinstance(status, str) or not status:
+            # A 200 that is no report, from a proxy for one, must not read as a clear turn
             return ReportResult("unavailable", "unexpected_response", trace)
         return ReportResult("ready", trace=trace, document=body)
     if reply.status == 202:
@@ -232,10 +254,6 @@ def _object(raw: bytes) -> dict[str, Any]:
 
 
 def _retry_after(headers: dict[str, str]) -> float:
-    value = next((v for k, v in headers.items() if k.lower() == "retry-after"), "")
-    try:
-        seconds = float(value)
-    except ValueError:
-        return DEFAULT_RETRY_AFTER
-    # Not NaN, and not a wait so short the loop spins
-    return max(MIN_RETRY_AFTER, seconds) if seconds == seconds else DEFAULT_RETRY_AFTER
+    seconds = retry_after_seconds(retry_after_header(headers))
+    # Not a wait so short the loop spins
+    return DEFAULT_RETRY_AFTER if seconds is None else max(MIN_RETRY_AFTER, seconds)

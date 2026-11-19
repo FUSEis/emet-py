@@ -12,7 +12,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.util._once import Once
 
 import emet_sdk
-from emet_sdk import _configure, _transport, _turn
+from emet_sdk import _configure, _transport, _turn, _worker
 from emet_sdk._delivery import DeliveryResult
 from emet_sdk._report import ReportResult
 from emet_sdk._transport import Reply
@@ -413,6 +413,32 @@ def test_report_on_a_turn_the_sdk_failed_to_send_does_not_wait(
     # The failed turn is on record, so report() answers without waiting out its budget
     result = emet_sdk.report(sent, timeout=0)
     assert (result.status, result.reason) == ("not_sent", "sdk_error")
+
+
+def test_report_on_a_turn_dropped_at_a_full_queue_does_not_wait(
+    emet: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_worker, "MAX_QUEUED_TURNS", 0)
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent:
+        pass
+    result = emet_sdk.report(sent, timeout=0)
+    assert (result.status, result.reason, emet["reads"]) == ("not_sent", "queue_full", [])
+
+
+def test_report_on_a_turn_dropped_while_the_app_exits_does_not_wait(
+    emet: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(self: threading.Thread) -> None:
+        raise RuntimeError("can't create new thread at interpreter shutdown")
+
+    emet_sdk.configure()
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    with emet_sdk.turn("team", "thread-1") as sent:
+        pass
+    monkeypatch.undo()
+    result = emet_sdk.report(sent, timeout=0)
+    assert (result.status, result.reason, emet["reads"]) == ("not_sent", "app_exiting", [])
 
 
 async def test_without_a_key_report_says_emet_is_off(monkeypatch: pytest.MonkeyPatch, emet: dict[str, Any]) -> None:

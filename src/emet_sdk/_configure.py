@@ -168,7 +168,14 @@ def configure(
         reports = Reports(origin, key)
         pipeline = _Pipeline(Sender(origin, key), reports, origin, key, service_name, on_delivery)
         worker = Worker(pipeline.handle, pipeline.deliver)
-        processor = EmetSpanProcessor(worker.submit)
+
+        def submit(turn: CapturedTurn) -> None:
+            dropped = worker.submit(turn)
+            if dropped:
+                # On record, so report() does not wait for a turn that will never be sent
+                reports.record(turn.info.id, new_result("skipped", dropped))
+
+        processor = EmetSpanProcessor(submit)
         try:
             add_span_processor(processor)
         except Exception:
@@ -198,9 +205,11 @@ def report(turn: TurnInfo | str | UUID, *, timeout: float) -> ReportResult:
     """Waits up to timeout seconds for Emet's report on a turn and returns it, or the reason there is none.
 
     turn is what the turn() block gave (`with emet_sdk.turn(...) as sent`), asked after the block has closed, or
-    the trace id from a delivery result. Emet says when to ask again while it is still checking; a timeout of 0
-    asks once. Never raises: a network or server error is a result too. Check result.flagged, and read
-    result.document for the answer and its claims. Call areport() from async code, since this one blocks.
+    the trace id from a delivery result. Emet says when to ask again while it is still checking. A timeout of 0
+    never waits: it asks once about a trace id, and answers not_ready for a turn that is still being sent. No
+    request starts once the timeout has passed; one started with under a second left gets one second. Never
+    raises: a network or server error is a result too. Check result.flagged, and read result.document for the
+    answer and its claims. Call areport() from async code, since this one blocks.
     """
     try:
         reports = _readable()
