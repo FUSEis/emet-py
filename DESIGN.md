@@ -43,6 +43,18 @@ The mapping is pinned by fixtures: spans recorded from real Pydantic AI runs, an
 
 `_delivery.py` gives every turn one result with a fixed set of keys: `sent`, `stopped` or `skipped`, the reason, the trace and conversation, counts, and the gaps Emet reported, named by tool. It defines **captured**: sent whole, attributed to a Team, on time, with no gaps. `emet-cli check --last` reads it from the file `write_delivery_file()` saves. The result never holds the key, the tenant, the user or any content.
 
+## Reading a report back
+
+`_report.py` asks Emet what it found in a turn the app sent: `GET /api/v1/traces/{trace}/report/`, with the same key.
+
+- **The trace id comes from the send.** Emet names the trace in its answer to each batch. The SDK remembers it for the latest 1000 turns, keyed by the turn's id in the process, so `report(sent)` needs no lookup. A turn that was skipped or stopped before Emet named a trace answers `not_sent` with the delivery's reason.
+- **Emet sets the pace, the caller sets the budget.** A `202` carries `Retry-After`, and the SDK waits that long, at least one second, before it asks again. It never starts a wait that would end past the caller's timeout. Waiting for the turn to be sent counts against the same budget.
+- **Retries.** One per read, on a timeout or a server error, as for a batch. A refused key and a rate limit end the call at once: asking again would not help the first and would deepen the second.
+- **One loop, two ways to sleep.** The read is a generator that yields each wait. `report()` sleeps on the calling thread. `areport()` runs each request on a thread and awaits the wait, so the event loop is never blocked.
+- **The document is not re-modelled.** `ReportResult.document` is the JSON object Emet returned, so a field Emet adds reaches the app without an SDK release. `flagged` is the one reading the SDK does for the app.
+- **Never on the SDK's thread.** `report()` called from `on_delivery` returns at once, because waiting there would hold up every turn still to be sent.
+- **Only a UUID reaches the URL.** The trace id is parsed before it is put in the path, whether the app passed it or Emet returned it.
+
 ## Choices we did not make
 
 - **Stamping turn values onto spans or baggage.** Every other exporter in the app would receive the tenant and the user's email.

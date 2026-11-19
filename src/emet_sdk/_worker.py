@@ -53,9 +53,12 @@ class Worker:
             self._pending += 1
             self._cond.notify()
 
+    def on_own_thread(self) -> bool:
+        return threading.current_thread() is self._thread
+
     def flush(self, timeout: float) -> bool:
         """Waits until every queued turn is handled. Returns False when the timeout ran out first."""
-        if threading.current_thread() is self._thread:
+        if self.on_own_thread():
             # Called from on_delivery: the turn being delivered cannot finish while it waits
             return False
         deadline = time.monotonic() + timeout

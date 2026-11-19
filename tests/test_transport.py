@@ -16,7 +16,7 @@ import pytest
 
 from emet_sdk import _transport
 from emet_sdk._delivery import new_result
-from emet_sdk._transport import Reply, Sender, check_endpoint, resolve_endpoint, split, urllib_post
+from emet_sdk._transport import Reply, Sender, check_endpoint, resolve_endpoint, split, urllib_get, urllib_post
 from emet_sdk._version import VERSION
 
 KEY = "emet_test_key_not_real"
@@ -270,6 +270,16 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(answer)
 
+    def do_GET(self) -> None:
+        self.seen.append((self.path, dict(self.headers.items()), b""))
+        status, headers, answer = self.answers.pop(0)
+        self.send_response(status)
+        for name, value in headers.items():
+            self.send_header(name, value)
+        self.send_header("Content-Length", str(len(answer)))
+        self.end_headers()
+        self.wfile.write(answer)
+
     def log_message(self, format: str, *args: Any) -> None:
         pass
 
@@ -309,6 +319,22 @@ def test_reads_an_error_body_and_never_follows_a_redirect(local_emet: tuple[str,
     assert json.loads(urllib_post(url, {}, b"{}", 5).body)["code"] == "permission_denied"
     assert urllib_post(url, {}, b"{}", 5).status == 307
     assert [path for path, _, _ in handler.seen] == ["/api/v1/traces/", "/api/v1/traces/"]
+
+
+def test_gets_over_http_with_headers_and_never_follows_a_redirect(local_emet: tuple[str, type[_Handler]]) -> None:
+    origin, handler = local_emet
+    handler.answers = [
+        (202, {"Retry-After": "5"}, b'{"status": "pending"}'),
+        (404, {}, json.dumps({"code": "not_assessed"}).encode()),
+        (307, {"Location": f"{origin}/elsewhere/"}, b""),
+    ]
+    url = origin + "/api/v1/traces/abc/report/"
+    first = urllib_get(url, {"Authorization": f"Bearer {KEY}"}, 5)
+    assert (first.status, first.headers["Retry-After"], first.body) == (202, "5", b'{"status": "pending"}')
+    assert json.loads(urllib_get(url, {}, 5).body)["code"] == "not_assessed"
+    assert urllib_get(url, {}, 5).status == 307
+    assert [path for path, _, _ in handler.seen] == ["/api/v1/traces/abc/report/"] * 3
+    assert handler.seen[0][1]["Authorization"] == f"Bearer {KEY}"
 
 
 def test_an_unreachable_local_emet_stops_the_turn() -> None:

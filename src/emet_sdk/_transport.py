@@ -40,6 +40,7 @@ class Reply:
 
 
 Post = Callable[[str, dict[str, str], bytes, float], Reply]
+Get = Callable[[str, dict[str, str], float], Reply]
 
 
 def check_endpoint(url: str) -> str:
@@ -101,7 +102,14 @@ _opener = urllib.request.build_opener(_NoRedirect())
 
 def urllib_post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> Reply:
     # check_endpoint has limited url to https://app.emet.so or localhost
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310
+    return _open(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout)  # noqa: S310
+
+
+def urllib_get(url: str, headers: dict[str, str], timeout: float) -> Reply:
+    return _open(urllib.request.Request(url, headers=headers, method="GET"), timeout)  # noqa: S310
+
+
+def _open(request: urllib.request.Request, timeout: float) -> Reply:
     try:
         with _opener.open(request, timeout=timeout) as response:
             return Reply(response.status, dict(response.headers.items()), response.read())

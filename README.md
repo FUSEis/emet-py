@@ -60,6 +60,55 @@ async def chat_stream(body: ChatIn, user=Depends(current_user)):
     return StreamingResponse(answer())
 ```
 
+### Read the report back
+
+Emet checks each turn after it arrives. To act on the result in your app, keep what `turn()` gives you and ask for the report once the block has closed:
+
+```python
+with emet_sdk.turn(tenant_ref=user.team_external_id, conversation_id=thread.id, user=user.email) as sent:
+    result = await agent.run(body.message)
+
+report = await emet_sdk.areport(sent, timeout=30)  # emet_sdk.report(...) in sync code
+if report.flagged:
+    logger.warning("Emet flagged a turn: trace %s", report.trace)
+    return HELD_REPLY  # or show the answer with its disputed claims marked
+return result.output
+```
+
+The call waits until the turn is sent, then asks Emet, waiting as long as Emet says between asks. It stops at `timeout` seconds; `timeout=0` asks once. It never raises: every outcome, a network error included, is a result with a `status`.
+
+| `status` | Meaning |
+| --- | --- |
+| `ready` | The report is in `document`. |
+| `not_ready` | Emet had not finished within your timeout. Ask again later with `report.trace`. |
+| `not_assessed` | Emet does not check this Application's turns automatically. |
+| `failed` | The check ended in error. |
+| `not_found` | Emet has no such trace, or this key may not read it. |
+| `refused` | Emet refused the key. |
+| `rate_limited` | The Application is over its limit of report reads. |
+| `not_sent` | The turn did not reach Emet, so there is nothing to ask about. `reason` says why, such as `no_spans` or `emet_off`. |
+| `unavailable` | Emet could not be reached or answered with an error. `reason` is `timeout`, `unreachable`, `server_error` or `unexpected_response`. |
+
+`report.flagged` is true only for a finished report in which Emet disputed a claim. `report.document` is the report exactly as Emet returned it:
+
+```python
+document = report.document
+if document and document["answer"]["text"] is not None:
+    answer = document["answer"]["text"]
+    for claim in document["claims"]:
+        if claim["verdict"] == "disputed":
+            passages = [answer[r["start"] : r["end"]] for r in claim["ranges"] if r["kind"] == "passage"]
+            print(passages, claim["reason"], claim["correction"])
+```
+
+- `document["report"]["status"]` is `flagged`, `clarified`, `clear`, `unchecked`, or `nothing` when the answer stated no claims to check. `status_text` is the label to show.
+- Each claim has a `verdict` (`verified`, `imprecise`, `disputed` or `unchecked`), a `reason` under a disputed claim, a `clarification` under an imprecise one, and a `correction` once Emet has verified one.
+- `ranges` are offsets into `answer["text"]`, which Python slices directly. A `passage` is where the claim is stated and a `figure` is the number inside it. `answer["text"]` is null, and `ranges` empty, when the stored answer no longer matches the one Emet checked.
+- Every text in the document is untrusted plain text: your user's answer, and reasons a model wrote after reading tool results. Escape it, and never render it as HTML or Markdown.
+- The document has a `version`, and Emet may add fields to it. Read the fields you need and ignore the rest.
+
+To read a report later, from a job or another request, store the `trace` of the turn's delivery result and pass it instead: `emet_sdk.report(trace, timeout=0)`. `on_delivery` runs on the SDK's own thread, so hand the id on from there; a `report()` called inside it returns `unavailable` at once.
+
 [`emet-cli`](https://github.com/FUSEis/emet-py/blob/main/cli/README.md) can do this setup with your coding agent, and tells you whether a turn reached Emet whole.
 
 ## How it works
@@ -89,6 +138,9 @@ The user you pass to `turn()`, usually their email, is stored on the trace so Em
 | --- | --- |
 | `configure(*, service_name=None, on_delivery=None, endpoint=None)` | Adds Emet to the global `TracerProvider`. Call once at startup; later calls do nothing. `service_name` names the app in Emet. `on_delivery` receives each turn's delivery result on the SDK's thread. `endpoint` takes only production or a localhost address, and any other value raises `ValueError` at startup; without one, the SDK uses `EMET_ENDPOINT`, then production. A tracer provider that cannot take a span processor turns Emet off, with one log line. |
 | `turn(tenant_ref, conversation_id, user=None)` | A context manager or decorator, sync or async, around one turn of your agent. `tenant_ref` is the External ID of the Team in Emet; `conversation_id` is your app's own thread id; `user` is who asked. It takes strings, integers and UUIDs, such as `thread.id` from your database; a value of any other type counts as missing. An empty or `None` `tenant_ref` or `conversation_id` never raises: the agent runs as usual and the turn is reported as skipped. |
+| `report(turn, *, timeout) -> ReportResult` | Waits up to `timeout` seconds for Emet's report on a turn. `turn` is what `with turn(...) as sent` gave, asked after the block has closed, or the `trace` of a delivery result. It blocks the calling thread and never raises. A turn marked with the decorator has no `sent` value, so read its report by `trace`. |
+| `areport(turn, *, timeout) -> ReportResult` | The same for async code. It does not block the event loop. |
+| `ReportResult` | `status`, `reason`, `trace` (Emet's id of the trace), `document` (the report as returned, or `None`) and `flagged`. |
 | `flush(timeout=10.0) -> bool` | Waits until every finished turn is sent; returns False when the timeout ran out first. Call it before a short-lived process exits. The SDK also flushes for up to 5 seconds at exit. |
 | `write_delivery_file(path)` | An `on_delivery` callback that saves the latest result to a file, for `emet-cli check --last`. Its folder must exist; it is never created for you. |
 | `EMET_APPLICATION_KEY` | The key, read from the environment when `configure()` runs. |

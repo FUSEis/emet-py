@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from collections.abc import Iterator
 from typing import Any
 
@@ -13,6 +14,7 @@ from opentelemetry.util._once import Once
 import emet_sdk
 from emet_sdk import _configure, _transport, _turn
 from emet_sdk._delivery import DeliveryResult
+from emet_sdk._report import ReportResult
 from emet_sdk._transport import Reply
 
 KEY = "emet_test_key_not_real"
@@ -25,6 +27,7 @@ def fresh_globals(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         trace._TRACER_PROVIDER = None
         _configure._processor = None
         _configure._worker = None
+        _configure._reports = None
         _configure._said_off = False
         _configure._said_bad_provider = False
         _turn._listeners.clear()
@@ -323,3 +326,126 @@ def test_an_explicit_local_endpoint_is_said_at_startup(
 ) -> None:
     emet_sdk.configure(endpoint="http://localhost:8000")
     assert "not production (set by the endpoint argument). Remove it to send to production." in caplog.text
+
+
+TRACE = "11111111-1111-1111-1111-111111111111"
+FLAGGED_REPORT = {"version": 1, "report": {"status": "flagged"}, "claims": []}
+
+
+@pytest.fixture
+def emet(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Stands in for Emet: accepts every batch onto one trace and answers each report read from a script."""
+    seen: dict[str, Any] = {"posts": 0, "reads": [], "answers": []}
+
+    def post(url: str, headers: dict[str, str], body: bytes, timeout: float) -> Reply:
+        seen["posts"] += 1
+        answer = {"trace": TRACE, "conversation": "c-uuid", "accepted": len(json.loads(body)["spans"]), "gaps": {}}
+        return Reply(202, {}, json.dumps(answer).encode())
+
+    def get(url: str, headers: dict[str, str], timeout: float) -> Reply:
+        seen["reads"].append({"url": url, "headers": headers})
+        answer = seen["answers"].pop(0)
+        if isinstance(answer, BaseException):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(_transport, "urllib_post", post)
+    monkeypatch.setattr(_transport, "urllib_get", get)
+    return seen
+
+
+def test_report_reads_back_the_turn_the_block_sent(emet: dict[str, Any]) -> None:
+    emet["answers"] = [Reply(200, {}, json.dumps(FLAGGED_REPORT).encode())]
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent, trace.get_tracer("test").start_as_current_span("chat") as span:
+        span.set_attribute("gen_ai.operation.name", "chat")
+    assert emet_sdk.flush(5)
+    result = emet_sdk.report(sent, timeout=5)
+    assert result == ReportResult("ready", "", TRACE, FLAGGED_REPORT)
+    assert result.flagged
+    [read] = emet["reads"]
+    assert read["url"] == f"https://app.emet.so/api/v1/traces/{TRACE}/report/"
+    assert read["headers"]["Authorization"] == f"Bearer {KEY}"
+    # The trace id came from the send, with no second lookup
+    assert emet["posts"] == 1
+
+
+async def test_areport_reads_back_the_turn_the_block_sent(emet: dict[str, Any]) -> None:
+    emet["answers"] = [Reply(200, {}, json.dumps(FLAGGED_REPORT).encode())]
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent, trace.get_tracer("test").start_as_current_span("chat") as span:
+        span.set_attribute("gen_ai.operation.name", "chat")
+    assert emet_sdk.flush(5)
+    result = await emet_sdk.areport(sent, timeout=5)
+    assert (result.status, result.trace, result.flagged) == ("ready", TRACE, True)
+
+
+def test_report_takes_the_trace_id_of_a_delivery_result(emet: dict[str, Any]) -> None:
+    emet["answers"] = [Reply(404, {}, b'{"code": "not_assessed"}')]
+    results: list[DeliveryResult] = []
+    emet_sdk.configure(on_delivery=results.append)
+    chat_turn()
+    assert emet_sdk.flush(5)
+    result = emet_sdk.report(results[0]["trace"], timeout=0)
+    assert (result.status, result.trace, result.flagged) == ("not_assessed", TRACE, False)
+
+
+def test_report_on_a_skipped_turn_says_it_was_not_sent(emet: dict[str, Any]) -> None:
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent:
+        pass
+    assert emet_sdk.flush(5)
+    result = emet_sdk.report(sent, timeout=5)
+    assert (result.status, result.reason, emet["reads"]) == ("not_sent", "no_spans", [])
+
+
+def test_report_on_a_turn_the_sdk_failed_to_send_does_not_wait(
+    emet: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*args: Any) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(_configure, "build_envelope", broken)
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent:
+        pass
+    assert emet_sdk.flush(5)
+    # The failed turn is on record, so report() answers without waiting out its budget
+    result = emet_sdk.report(sent, timeout=0)
+    assert (result.status, result.reason) == ("not_sent", "sdk_error")
+
+
+async def test_without_a_key_report_says_emet_is_off(monkeypatch: pytest.MonkeyPatch, emet: dict[str, Any]) -> None:
+    monkeypatch.delenv("EMET_APPLICATION_KEY")
+    emet_sdk.configure()
+    with emet_sdk.turn("team", "thread-1") as sent:
+        pass
+    off = ReportResult("not_sent", "emet_off")
+    assert emet_sdk.report(sent, timeout=5) == off
+    assert emet_sdk.report(TRACE, timeout=5) == off
+    assert await emet_sdk.areport(sent, timeout=5) == off
+    assert emet["reads"] == []
+
+
+async def test_report_never_raises_into_the_app(emet: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+    emet["answers"] = [RuntimeError("boom"), RuntimeError("boom")]
+    emet_sdk.configure()
+    broken = ReportResult("unavailable", "sdk_error")
+    assert emet_sdk.report(TRACE, timeout=5) == broken
+    assert await emet_sdk.areport(TRACE, timeout=5) == broken
+    assert emet_sdk.report(TRACE, timeout="soon") == broken  # type: ignore[arg-type]
+    assert caplog.text.count("Emet failed to read a report") == 3
+    assert KEY not in caplog.text
+
+
+def test_report_refuses_to_wait_on_the_sdks_own_thread(emet: dict[str, Any]) -> None:
+    seen: list[tuple[str, ReportResult]] = []
+
+    def on_delivery(result: DeliveryResult) -> None:
+        seen.append((threading.current_thread().name, emet_sdk.report(result["trace"], timeout=30)))
+
+    emet_sdk.configure(on_delivery=on_delivery)
+    chat_turn()
+    assert emet_sdk.flush(5)
+    assert seen == [("emet-sdk", ReportResult("unavailable", "sdk_thread"))]
+    assert emet["reads"] == []
